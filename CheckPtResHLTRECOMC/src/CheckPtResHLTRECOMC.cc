@@ -108,7 +108,7 @@ class CheckPtResHLTRECOMC : public edm::EDAnalyzer
 
 	private:
 		void cleanDM();
-		void fillhisto(const int & restype);
+		void fillhistoandmatch(const int & restype);
 		std::vector<std::pair<int,int > > getindexsdRmatch( 
 				const std::vector<double> & etameasv, const std::vector<double> & etagenv,
 				const std::vector<double> & phimeasv, const std::vector<double> & phigenv,
@@ -139,6 +139,12 @@ class CheckPtResHLTRECOMC : public edm::EDAnalyzer
 		std::vector<double> * _RECOMupt;
 		std::vector<double> * _RECOMueta;
 		std::vector<double> * _RECOMuphi;
+		// MATCHING INFO
+		// Each key contains a vector which:
+		//     * number of element: index of the Measured object
+		//     * element vector content: index of the Generated
+		//                     matched 
+		std::map<int,std::vector<std::pair<int,int> > *> _indxMeasGen;
 
 		// All vectors references (to facilitate the destrucction)
 		std::list<std::vector<double>** > _registry;
@@ -234,18 +240,26 @@ CheckPtResHLTRECOMC::CheckPtResHLTRECOMC(const edm::ParameterSet& iConfig)
 	_tree->Branch("BunchCrossing",&_Bx);
 	_tree->Branch("OrbitNumber",&_Orbit);
 	
-	// Histograms
-	_ptreshistos[RECOHLT] = new TH2F("recohlt", "", 100, -6e-2,6e-2, 100, 0,16 );
+	// Histograms and Matching
+	_ptreshistos[RECOHLT] = new TH2F("recohlt", "", 250, -1.5,1.5, 100, 0,16 );
+	_indxMeasGen[RECOHLT] = 0;
+	_tree->Branch("idx_recohlt", &(_indxMeasGen[RECOHLT]) );
 	if( ! _isData )
 	{
-		_ptreshistos[MCRECO] = new TH2F("mcreco","", 100, -6e-2,6e-2, 100, 0.0,16.0 );
-		_ptreshistos[MCHLT] = new TH2F("mchlt", "", 100, -6e-2,6e-2, 100, 0.0,16.0 );
+		_ptreshistos[MCRECO] = new TH2F("mcreco","", 250, -1.5,1.5, 100, 0.0,16.0 );
+		_ptreshistos[MCHLT] = new TH2F("mchlt", "", 250, -1.5,1.5, 100, 0.0,16.0 );
+
+		_indxMeasGen[MCRECO] = 0;
+		_tree->Branch("idx_mcreco", &(_indxMeasGen[MCRECO]) );
+		_indxMeasGen[MCHLT]  = 0;
+		_tree->Branch("idx_mchlt", &(_indxMeasGen[MCHLT]) );
 	}
 	// Associated to the file
 	for(std::map<int,TH2F*>::iterator it = _ptreshistos.begin(); it != _ptreshistos.end(); it++)
 	{
 		it->second->SetDirectory(_file);
 	}
+
 }
 
 
@@ -274,6 +288,16 @@ void CheckPtResHLTRECOMC::cleanDM()
 		{
 			delete *(*it);
 			*(*it) = 0;
+		}
+	}
+	// Freeing indx
+	for(std::map<int,std::vector<std::pair<int,int> > *>::iterator it = _indxMeasGen.begin();
+			it != _indxMeasGen.end(); it++)
+	{
+		if( it->second )
+		{
+			delete it->second;
+			it->second = 0;
 		}
 	}
 
@@ -343,7 +367,7 @@ std::vector<std::pair<int,int > > CheckPtResHLTRECOMC::getindexsdRmatch(
 	return indexs;
 }
 
-void CheckPtResHLTRECOMC::fillhisto(const int & restype)
+void CheckPtResHLTRECOMC::fillhistoandmatch(const int & restype)
 {
 
 	std::vector<double> * ptmeasv =0; 
@@ -390,11 +414,12 @@ void CheckPtResHLTRECOMC::fillhisto(const int & restype)
 		std::cout << "Error: Not a known resolution type '" << restype << "'" << std::endl;
 		exit(-1);
 	}
+	// Init index ---> FIXED BUG!! (Affecting MC case)
+	_indxMeasGen[restype]= new std::vector<std::pair<int,int> >;
+
 	// meas, gen
-//std::cout << "----Before getindexsdRmatch: MEAS:" << ptmeasv->size() << " GEN:(RECO) " << ptgenv->size() << std::endl;
 	const std::vector<std::pair<int, int> > matchedindx = getindexsdRmatch(*etameasv,*etagenv,
 			*phimeasv, *phigenv, *ptmeasv, *ptgenv );
-//std::cout << "index size: " << matchedindx.size() << std::endl;
 
 	for(std::vector<std::pair<int,int> >::const_iterator it = matchedindx.begin();
 			it != matchedindx.end(); it++)
@@ -403,7 +428,9 @@ void CheckPtResHLTRECOMC::fillhisto(const int & restype)
 		const double ptgen = ptgenv->at(it->second);
 
 		_ptreshistos[restype]->Fill( (ptgen-ptmeas)/ptmeas, _Nvrt );
-//std::cout << "******** Must be : " << (ptgen-ptmeas)/ptmeas << " NPV=" << _Nvrt std::endl;
+
+		// Matching
+		_indxMeasGen[restype]->push_back(std::pair<int,int>(it->first,it->second));
 	}
 }
 
@@ -463,19 +490,15 @@ CheckPtResHLTRECOMC::analyze(const edm::Event& iEvent, const edm::EventSetup& iS
 	const std::vector<pat::Muon> * patMuons = handlePatMuons.product();
 	// ordered
 	const std::list<int> muonrecoindx = getindordlept<std::vector<pat::Muon> >( patMuons );
-	//for(std::vector<pat::Muon>::const_iterator it = patMuons->begin(); it != patMuons->end(); it++)
 	for(std::list<int>::const_iterator it = muonrecoindx.begin(); it != muonrecoindx.end(); it++)
 	{
 		_RECOMupt->push_back( patMuons->at(*it).pt() );
 		_RECOMueta->push_back( patMuons->at(*it).eta() );
 		_RECOMuphi->push_back( patMuons->at(*it).phi() );
-//		_RECOMupt->push_back( it->pt() );
-//		_RECOMueta->push_back( it->eta() );
-//		_RECOMuphi->push_back( it->phi() );
 	}
 
 	// Filling the histos
-	fillhisto( RECOHLT );
+	fillhistoandmatch( RECOHLT );
 
 	// MC stuff
 	if( ! _isData )
@@ -502,8 +525,8 @@ CheckPtResHLTRECOMC::analyze(const edm::Event& iEvent, const edm::EventSetup& iS
 			_MCMuphi->push_back( gpv->at(*it).phi() );
 		}
 
-		fillhisto( MCRECO );
-		fillhisto( MCHLT );
+		fillhistoandmatch( MCRECO );
+		fillhistoandmatch( MCHLT );
 	}
 
 	// Storing 
