@@ -17,15 +17,19 @@
 #include<string>
 #include<vector>
 #include<queue>
+#include<map>
+#include<set>
 
 #endif
 
 #include "DatasetManager.h"
 #include "InputParameters.h"
 #include "TreeTypes.h"
+#include "LeptonTypes.h"
 
 #include "AnalysisBuilder.h"
-#include "AnalysisVH.h"
+//#include "AnalysisVH.h"
+#include "AnalysisBase.h"
 
 
 // ROOT
@@ -37,8 +41,9 @@
 
 
 // Global variables
-double xsection = 0;
-int    evtsample= 0;
+double      xsection = 0;
+int         evtsample= 0;
+std::string RUNPERIOD;
 
 // Storing the datafiles
 void AddDataFiles(const std::vector<TString> & files, 
@@ -57,8 +62,9 @@ void PrintDataFiles(const std::vector<TString> & dataFiles)
 }
 
 // Giving a dataset extract all the files and stores them in a file
-const std::vector<TString> extractdatafiles(TString dataName = "HW160" )
+/*const std::vector<TString> extractdatafiles(TString dataName = "HW160" ) // TO BE DEPRECATED
 {
+
 	bool storeXSE = false;
 
 	// 1) Load the files
@@ -188,7 +194,7 @@ const std::vector<TString> extractdatafiles(TString dataName = "HW160" )
 	of.close();
 
 	return datafiles;	
-}
+}*/
 
 // Overloaded function to extract the file names from a previous stored file
 // It will catch the files inside a subset: if datanamefile != is the name
@@ -213,8 +219,10 @@ std::pair<treeTypes,std::vector<TString> > extractdatafiles(const char * dataNam
 	std::ifstream inputf( filename );
 	if( ! inputf.is_open() )
 	{
-		// Call the extractdatafiles overloaded to create the filename
-		return extractdatafiles(dataName);
+		// Call the extractdatafiles overloaded to create the filename// DEPRECATED
+		std::cout << "\033[1;31mextractdatafiles DEPRECATED\033[1;m function. Launch "
+			<< "'datamanagercreator' instead. Exiting" << std::endl;
+		//return extractdatafiles(dataName);
 	}
 	
 	// TreeType
@@ -243,6 +251,12 @@ std::pair<treeTypes,std::vector<TString> > extractdatafiles(const char * dataNam
 			std::stringstream sNE(line.substr(8));
 			sNE >> evtsample;
 		}
+		else if(line.find("RUNPERIOD:") != line.npos )
+		{
+			std::stringstream sRP(line.substr(10));
+			sRP >> RUNPERIOD;
+		}
+				
 		else if( line != "" )
 		{
 			datafiles.push_back( TString(line) );
@@ -256,16 +270,18 @@ std::pair<treeTypes,std::vector<TString> > extractdatafiles(const char * dataNam
 
 
 // From a config file, extract the parameters needed
+// FIXME: Necesito incluir una nueva variable fija: tipo de lepton
+// lo que devuelva sera un par<Lepton,inputPar>
 InputParameters * setparameters(const std::vector<TString> & datafiles, const TString & dataName,
-		const char * cfgfile)
+		const char * cfgfile, const char * nameIPinstance="Set Of Parameters")
 {
 	// Introduce the analysis parameters
 	//TreeType treeType = kMiniTrees;
 	
 	// Parsing the config file
-	InputParameters * ip = InputParameters::parser(cfgfile);
+	InputParameters * ip = InputParameters::parser(cfgfile,nameIPinstance);
 
-	TString MySelector = ip->TheNamedString("MySelector");
+	//TString MySelector = ip->TheNamedString("MySelector");  // TO BE DEPRECATED
 
 	///////////////////////////////
 	// OUTPUT FILE NAME
@@ -273,7 +289,7 @@ InputParameters * setparameters(const std::vector<TString> & datafiles, const TS
 	TString outputFile;
 	// Mkdir Results if necessary
 	system("mkdir -p Results");
-	outputFile.Form("Results/%s_%s.root", MySelector.Data(), dataName.Data()); 
+	outputFile.Form("Results/%s.root", dataName.Data()); 
 	
 	TString myTreeName = ip->TheNamedString("NameTree");
  	//
@@ -291,6 +307,9 @@ InputParameters * setparameters(const std::vector<TString> & datafiles, const TS
 		ip->SetNamedDouble("CrossSection", xsection);
 		ip->SetNamedInt("NEventsSample", evtsample);
 	}
+	
+	// + Run period
+	ip->SetNamedString("RunPeriod",RUNPERIOD);
 
 	// + Data Name
 	ip->SetNamedString("DataName", dataName.Data());
@@ -300,9 +319,9 @@ InputParameters * setparameters(const std::vector<TString> & datafiles, const TS
 	// If 0 the default name schema will be used, i.e. depending on the value
 	// of gPAFOptions->treeType: MyAnalysisTESCO or MyAnalsyisMiniTrees
 	//
-	TString myAnalysis = MySelector.Data();
+	//TString myAnalysis = MySelector.Data();
 
-	ip->SetNamedString(std::string("MyAnalysis"),std::string(myAnalysis));
+	//ip->SetNamedString(std::string("MyAnalysis"),std::string(myAnalysis));  // TO BE DEPRECATED
 
 	// All the datafiles
 	for(unsigned int i = 0; i < datafiles.size(); ++i)
@@ -317,21 +336,24 @@ InputParameters * setparameters(const std::vector<TString> & datafiles, const TS
 	return ip;
 }
 
-void help_usage()
+void display_usage()
 {
-	std::cout << "usage: runanalysis dataname [options]" << std::endl;
+	std::cout << "\033[1;37musage:\033[1;m runanalysis dataname [options]" << std::endl;
 	std::cout << "" << std::endl;
 	std::cout << "Options:" << std::endl;
-	std::cout << "    -c configuration file " << std::endl;
-	std::cout << "    -d dataname file" << std::endl;
-	std::cout << "    -l <mmm|eee>  Final state signature (mmm per default)" << std::endl;
-	std::cout << "    -o output root file " << std::endl;
+	std::cout << "    -a <WZ|WH>               Analysis to be done" << std::endl;
+	std::cout << "    -c LEPTON:config1[,LEPTON2:config1,...] " << std::endl;
+	std::cout << "                             configurations file " << std::endl;
+	std::cout << "    -d dataname.dn           filename containing the files for the 'dataname'" << std::endl;
+	std::cout << "    -l <mmm|eee|mme|eem>     Final state signature (mmm per default)" << std::endl;
+	std::cout << "    -o output.root           output root file " << std::endl;
+	std::cout << "    -h                       displays this help message and exits " << std::endl;
 	std::cout << "" << std::endl;
 	std::cout << "List of known dataname:" << std::endl;
 	std::cout << "    Higgs:             WH# (#: Higgs Mass hypothesis)" << std::endl;
 	std::cout << "    Z + Jets Madgraph: ZJets_Madgraph" << std::endl;
 	std::cout << "    Z + Jets Powheg:   DYee DYmumu Dytautau Zee_Powheg Zmumu_Powheg Ztautau_Powheg" << std::endl;
-	std::cout << "    Zbb + Jets:        Zbb" << std::endl;
+	std::cout << "    Zbb + Jets:        Zbb (NOT IMPLEMENTED)" << std::endl;
 	std::cout << "    Other backgrounds: WZ ZZ WW TTbar_Madgraph WJetas_Madgraph TW TbarW" << std::endl;
 }
 
@@ -339,55 +361,133 @@ void help_usage()
 int main(int argc, char *argv[])
 {
 	const char * dataName       = 0; // = "WH160";
-	const char * cfgfile        = "analisiswh_mmm.ip";
+	std::map<std::string,std::string> cfgfilemap;
 	const char * outputfilechar = 0;
 	const char * datanamefile   = 0;
 	const char * fsSignature    = "mmm";
+	const char * antype    = "WH";
 
 	bool getOF = false;
+
+	// Arguments used
+	std::set<int> usedargs;
 	//Parsing input options
 	if(argc == 1)
 	{
-		help_usage();
+		display_usage();
 		return -1;
-	}
-	else if( argc == 2)
-	{
-		dataName = argv[1];
 	}
 	else
 	{
 		//Argumet 1 must be a valid input fileName
-		dataName = argv[1];
-		for(int i = 2; i < argc; i++) 
+		//dataName = argv[1];
+		for(int i = 1; i < argc; i++) 
 		{
+			if( strcmp(argv[i],"-h") == 0 )
+			{
+				display_usage();
+				return 0;
+			}
 			if( strcmp(argv[i],"-c") == 0 )
 			{
-				cfgfile = argv[i+1];
+				// Extracting if there are more than one
+				std::string rawconfigs = argv[i+1];
+				char * pch;
+				// Note that strtok changes the original
+				// string, so I must de-const..
+				char *temp = new char[rawconfigs.size()];
+				temp = const_cast<char*>(rawconfigs.c_str());
+				pch = strtok(temp," ,");
+				while( pch != 0)
+				{
+					std::istringstream insidecomma(pch);
+					std::string tempstr;
+					std::vector<std::string> tmpvectstr;
+					while(std::getline(insidecomma,tempstr,':'))
+					{
+						tmpvectstr.push_back(tempstr);
+					}
+					if( tmpvectstr.size() != 2 )
+					{
+						std::cerr << "\033[1;31mrunanalysis ERROR\033[1;m"
+							<< " Not able to parse '-c' option, recall the syntaxis:"
+							<< " '-c MUON:config_file,ELEC:config_file'" 
+							<< std::endl;
+						return -1;
+					}
+					cfgfilemap[tmpvectstr[0]] = tmpvectstr[1];
+					pch = strtok(0, " ,");
+				}
+				// Extract the null
+				usedargs.insert(i);
+				usedargs.insert(i+1);
+				i++;
 			}
 			
 			if( strcmp(argv[i],"-o") == 0 )
 			{
 				outputfilechar = argv[i+1];
 				getOF = true;
+				usedargs.insert(i);
+				usedargs.insert(i+1);
+				i++;
 			}
 			if( strcmp(argv[i],"-d") == 0 )
 			{
 				datanamefile = argv[i+1];
+				usedargs.insert(i);
+				usedargs.insert(i+1);
+				i++;
 			}
 			if( strcmp(argv[i],"-l") == 0 )
 			{
 				fsSignature = argv[i+1];
-				if( strcmp(fsSignature,"mmm") != 0 &&
-						strcmp(fsSignature,"eee") != 0 )
+				if( strcmp(fsSignature,"mmm") != 0 
+						&& strcmp(fsSignature,"eee") != 0 
+						&& strcmp(fsSignature,"mme") != 0
+						&& strcmp(fsSignature,"eem") != 0 )
 				{
-					std::cerr << "runanalysis ERROR: Not implemented '" << fsSignature
-						<< "' in '-l' option. Valid arguments are: mmm eee" << std::endl;
+					std::cerr << "\033[1;31mrunanalysis ERROR:\033[1;m Not implemented '" << fsSignature
+						<< "' in '-l' option. Valid arguments are: mmm eee mme eem" << std::endl;
 					return -1;
 				}
+				usedargs.insert(i);
+				usedargs.insert(i+1);
+				i++;
+			}
+			if( strcmp(argv[i],"-a") == 0 )
+			{
+				antype = argv[i+1];
+				if( strcmp(antype,"WZ") != 0 
+						&& strcmp(antype,"WH") != 0 )
+				{
+					std::cerr << "\033[1;31mrunanalysis ERROR:\033[1;m Not implemented '" << antype
+						<< "' in '-a' option. Valid arguments are: WH WZ" << std::endl;
+					return -1;
+				}
+				usedargs.insert(i);
+				usedargs.insert(i+1);
+				i++;
 			}
 		}
 	}
+	// Extracting the data name
+        for(int i=1; i < argc; i++)
+	{
+		if(usedargs.find(i) == usedargs.end())
+		{
+			dataName = argv[i];
+			break;
+		}
+	}
+	if( dataName == 0 )
+	{
+		std::cerr << "\033[1;31mrunanalysis ERROR:\033[1;m The 'dataname' argument is mandatory!"
+			<< std::endl;
+		display_usage();
+		return -1;
+	}
+
 
 #ifdef TIMERS
 	TStopwatch timer;
@@ -400,7 +500,7 @@ int main(int argc, char *argv[])
 	t1 = timer.RealTime();
 	timer.Start();
 #endif
-	// Extract the datafiles from the file created in the "local" path
+	// Extract the datafiles from the file which it contains them
 	std::pair<treeTypes,std::vector<TString> > dum = extractdatafiles(dataName, datanamefile );
 	std::vector<TString> datafiles = dum.second;
 	treeTypes dataType  = dum.first;
@@ -410,10 +510,45 @@ int main(int argc, char *argv[])
 	t2 = timer.RealTime();
 	timer.Start();
 #endif
-	// Initialize the analysis specific parameters using a config file
-	InputParameters * ip = setparameters(datafiles,TString(dataName),cfgfile); 
-	//ip->DumpParms();
+	//-- Configuration of the analysis
+	// Sanity check
+	if( cfgfilemap.size() > 2 )
+	{
+		std::cerr << "\033[1;31mrunanalysis ERROR\033[1;m It has been"
+		<< " introduced 2 configuration files which it has no sense:"
+		<< " There are 2 different stable lepton flavours!"
+		<< std::endl;
+		exit(-1);
+	}
 
+	// Initialize the analysis specific parameters using the config file
+	std::map<LeptonTypes,InputParameters*> ipmap;
+	for(std::map<std::string,std::string>::iterator cfgfile = cfgfilemap.begin(); 
+			cfgfile != cfgfilemap.end(); ++cfgfile)
+	{
+		// finding the pairs type of lepton -> analysis config file
+		LeptonTypes lepton;
+		if( cfgfile->first == "MUON" || cfgfile->first == "MU" ||
+				cfgfile->first == "muon" || cfgfile->first == "mu" )
+		{
+			lepton = MUON;
+		}
+		else if( cfgfile->first == "ELECTRON" || cfgfile->first == "ELEC" ||
+				cfgfile->first == "elec" || cfgfile->first == "elec" )
+		{
+			lepton = ELECTRON;
+		}
+		else
+		{
+			std::cerr << "\033[1;31mrunanalysis ERROR\033[1;m Not recognized"
+				<< " '" << cfgfile->first << "' as a valid lepton to associate"
+				<< " a config file (-c option). Valid names are:"
+				<< "\nMUON MU muon mu ELECTRON ELE electron ele"
+				<< std::endl;
+			return -1;
+		}
+		ipmap[lepton] = setparameters(datafiles,TString(dataName),cfgfile->second.c_str());
+	}
 	TChain * tchaindataset = 0;
 	// Data: FIXME: Extract this info from a centralized way (TreeManager?)
 	//              TreeTypes mejor
@@ -428,39 +563,35 @@ int main(int argc, char *argv[])
 	else
 	{
 		std::cerr << " ERROR: ROOT tree file contains an unrecongnized Tree" << std::endl;
-		if( ip != 0)
+		// Freeing memory as the future owner of InputParameters it is not initialized even
+		for(std::map<LeptonTypes,InputParameters*>::iterator ip = ipmap.begin(); ip != ipmap.end(); 
+				++ip)
 		{
-			delete ip;
+			if( ip->second != 0)
+			{
+				delete ip->second;
+				ip->second = 0;
+			}
 		}
-		exit(-1);
+		return -1;
 	}
 	for(std::vector<TString>::iterator it = datafiles.begin(); it != datafiles.end(); ++it)
 	{
 		tchaindataset->Add(*it);
 	}
 
-	//tchaindataset->GetListOfFiles()->Print();
 
+	// Extract entries now before the InputParameters is going to 
+	// be used by the Builder (the Analysis will be the owner and
+        // there is going to delete some of them
 
-#ifdef TIMERS
-	//T3
-	t3 = timer.RealTime();
-	timer.Start();
-#endif
-	// Creating Analysis
-	AnalysisVH * analysis = AnalysisBuilder::Build( dataType, fsSignature, ip, tchaindataset ); 
-
-#ifdef TIMERS
-	//T4
-	t4 = timer.RealTime();
-	timer.Start();
-#endif
-	// Processing
 	// Entries
 	int nEvents = -1;
-	ip->TheNamedInt("nEvents",nEvents);
+	// Take whatever, they contain the same values
+	ipmap.begin()->second->TheNamedInt("nEvents",nEvents);
 	int firstEvent = -1 ;
-	ip->TheNamedInt("firstEvent",firstEvent);
+	ipmap.begin()->second->TheNamedInt("firstEvent",firstEvent);
+	// Processing
 	if( nEvents < 0 )
 	{
 		nEvents = TChain::kBigNumber;
@@ -471,7 +602,21 @@ int main(int argc, char *argv[])
 			<< "using 0 as default" << std::endl;
 		firstEvent = 0; 
 	}
-	//std::cout << tchaindataset->GetEntries() << std::endl;
+
+#ifdef TIMERS
+	//T3
+	t3 = timer.RealTime();
+	timer.Start();
+#endif
+	// Creating Analysis
+	AnalysisBase * analysis = AnalysisBuilder::Build( antype, dataType, fsSignature, ipmap ); 
+
+#ifdef TIMERS
+	//T4
+	t4 = timer.RealTime();
+	timer.Start();
+#endif
+	// The mother of everything...
 	tchaindataset->Process(analysis,0,nEvents,firstEvent);
 	
 #ifdef TIMERS
@@ -479,69 +624,8 @@ int main(int argc, char *argv[])
 	t5 = timer.RealTime();
 	timer.Start();
 #endif
-	//
-	// Create the output file and fill it
-	// FIXME: Esto va aqui?? o mejor en el destructor del AnalysisVH
-	// Putting the outputfile name per default
-	std::string outputfile;
-	if( ! getOF )
-	{
-		// Extract the name of the file and get the last 
-		std::string filename( ip->TheNamedString("datafilenames_0") );
-		size_t barlastpos = filename.rfind("/")+1;
-		if( barlastpos == filename.npos )
-		{
-			// all the string is valid
-			barlastpos = 0;
-		}
-		// Extracting the .root suffix
-		const size_t rootpos = filename.find(".root");
-		const size_t length  = rootpos-barlastpos;
-		std::string almostfinalname = filename.substr(barlastpos,length);
-		// And extract the Tree_
-		size_t prefix = almostfinalname.rfind("Tree_")+5;
-		if( prefix == almostfinalname.npos )
-		{
-			prefix = 0;
-		}
-		std::string finalname = almostfinalname.substr(prefix);;
-
-		outputfile = "Results/"+std::string(ip->TheNamedString("MyAnalysis"))+"_"
-			+finalname+".root";
-	}
-	else
-	{
-		outputfile = outputfilechar;
-	}
-	std::cout << ">> Saving results to " << outputfile << " ..." << std::endl;
-	TString outputfileTS = TString(outputfile);
-	if(gSystem->FindFile(".", outputfileTS)) 
-	{
-		std::cout << "WARNING: File " << outputfile << " already exits!" << std::endl;
-		TString outputFileBak = outputfile + ".bak";
-		std::cout << "         Moving it to " << outputFileBak << std::endl;
-		gSystem->CopyFile(outputfile.c_str(), outputFileBak.Data(), kTRUE);
-		gSystem->Unlink(outputfile.c_str());
-	}
-	TFile histoAnalysis(outputfile.c_str(), "NEW");
-	if (histoAnalysis.IsOpen()) 
-	{
-		TList* li = 0;
-		TList* lo = 0;
-		li = analysis->GetInputList();
-		lo = analysis->GetOutputList();
-		li->Write();
-		lo->Write();
-		histoAnalysis.Close();
-	}
-
-	// Now the class is in charge of deleting the InputParameter
-	// as is one of its datamembers
-	/*if( ip != 0 )
-	{
-		delete ip;
-		ip=0;
-	}*/
+	// Storing the output
+	analysis->SaveOutput( outputfilechar );
 
 	if( analysis != 0 )
 	{

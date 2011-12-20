@@ -1,9 +1,7 @@
-// -*- C++ -*-
-//
-// Package:    ElecSelection
+// -*- CCutManagerPackage:    CutManager
 // Class:      ElecSelection
 // 
-/**\class  ElecSelection.h src/ElecSelection.cc
+/**\class  ElecSelection
 
  Description: Concrete class to select electrons
 
@@ -21,6 +19,7 @@
 
 #include "TROOT.h"
 #include "CutManager.h"
+#include "LeptonMixingSelection.h"
 
 #include<set>
 
@@ -28,16 +27,20 @@ class WPElecID;
 
 class ElecSelection : public CutManager
 {
+	friend class LeptonMixingSelection;
+
 	public:
 
 		//! Constructor
-		ElecSelection( TreeManager * data, const int & nLeptons = 3 );
+		ElecSelection( TreeManager * data, const int & WPlowpt, const int & WPhighpt,
+				const int & nLeptons = 3 );
 		//! Destructor
 		virtual ~ElecSelection();
 
 		//! Lock the cuts introduced (function to be call after the last
-		//! SetCut call)
-		virtual void LockCuts();
+		//! Fix the cuts extracted from the InputParameters
+		virtual void LockCuts(const std::map<LeptonTypes,InputParameters*> & ip, 
+				const std::vector<std::string> & cuts);
 		
 		//! Some special cuts which are use directly from the analysis client
 		//! (used as wrapper, see valid codenames inside the implementation)
@@ -65,7 +68,9 @@ class ElecSelection : public CutManager
 
 		//! Get the code names of the selection cuts
 		virtual std::vector<std::string> GetCodenames() const;
-
+		
+		//! Get the lepton type of the i-esim good lepton
+		virtual LeptonTypes GetLeptonType(const unsigned int & index) const { return ELECTRON; }
 
 	private:
 		//-- The effective cuts whose would be called by IsPass

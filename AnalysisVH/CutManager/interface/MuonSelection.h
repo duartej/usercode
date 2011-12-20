@@ -1,35 +1,19 @@
-
-///////////////////////////////////////////////////////////////////////
-//
-//    FILE: MuonSelection.h
-//   CLASS: MuonSelection
-// AUTHORS: I. Gonzalez Caballero
-//    DATE: 09/05/2011
-//
-// CONTENT: This class for PAF standarizes the selection of good muons 
-//          for analysis
-//
-// Changelog: Incorporates some getters functions to the 
-//            CMSAnalysisSelector class in order to avoid the creation
-//            of every MuonSelector class for every diferent kind of
-//            tree. Now, the responsable to call the current selector
-//            to use is the client, not the MuonSelector class.
-//                                       J. Duarte Campderros Oct, 2011
-///////////////////////////////////////////////////////////////////////
 // -*- C++ -*-
 //
-// Package:    MuonSelection
+// Package:    CutManager
 // Class:      MuonSelection
 // 
-/**\class  MuonSelection.h src/MuonSelection.cc
+/**\class  MuonSelection
 
  Description: Concrete class to select muons
 
  Implementation: 
 */
 //
-// Modifications Author: Jordi Duarte Campderros  
+// Author: Jordi Duarte Campderros  
 //         Created:  Sun Oct  30 12:20:31 CET 2011
+//         Based in the PROOF version of the code created by
+//         I. Gonzalez Caballero (May 9 2011)
 // 
 // jordi.duarte.campderros@cern.ch
 //
@@ -39,6 +23,7 @@
 
 #include "TROOT.h"
 #include "CutManager.h"
+#include "LeptonMixingSelection.h"
 
 #include<set>
 
@@ -47,12 +32,16 @@
 
 class MuonSelection : public CutManager
 {
+	//! Granting access to the vector datamembers
+	friend class LeptonMixingSelection;
+
 	public:
 		MuonSelection( TreeManager * data, const int & nLeptons = 3 );
 		virtual ~MuonSelection() { }
 
 		// Initialization of datamembers
-		virtual void LockCuts();
+		virtual void LockCuts(const std::map<LeptonTypes,InputParameters*> & ip,
+				const std::vector<std::string> & cuts);
 		
 		//-- Some special cuts which are use directly from
 		//   the anlysis client (used as wrapper)
@@ -78,10 +67,10 @@ class MuonSelection : public CutManager
 		// Select Good Identified Leptons: 
 		// - Depends on 
 		virtual unsigned int SelectGoodIdLeptons();
+		virtual LeptonTypes GetLeptonType(const unsigned int & index) const { return MUON; }
 
 		// Get the code names of the selection cuts
 		virtual std::vector<std::string> GetCodenames() const;
-
 
 	private:
 		//-- The effective cuts whose would be called by IsPass
@@ -121,7 +110,7 @@ class MuonSelection : public CutManager
 		int    kMinNValidPixelHitsInTrk;
 		int    kMinNValidHitsInTrk     ;
 		double kMaxDeltaPtMuOverPtMu   ;
-
+		
 	ClassDef(MuonSelection,0);
 };
 #endif

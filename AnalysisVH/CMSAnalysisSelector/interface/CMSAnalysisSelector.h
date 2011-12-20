@@ -121,8 +121,8 @@ class CMSAnalysisSelector : public TSelector {
   //
   virtual void InitialiseParameters() {}
   virtual void Initialise() = 0;
-  virtual void InsideLoop() = 0;
-  virtual void SetDataMembersAtTermination() {} //OBSOLETE
+  virtual unsigned int InsideLoop() = 0;
+  virtual void StoresCut(const unsigned int & cut) = 0 ;
   virtual void Summary() = 0;
   //
   /////////////////////////////////////////////////////////////
@@ -137,7 +137,8 @@ class CMSAnalysisSelector : public TSelector {
 
 
  protected:
-  InputParameters* fInputParameters;
+  //! type of the leptons -> InputParameters
+  InputParameters * fInputParameters;
   TCounterUI*      fNEventsProcessed;
   CutManager *     fLeptonSelection;   // FIXME: Podria ser un map<enum lepton type,manager>??
 

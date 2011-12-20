@@ -23,19 +23,44 @@ Nov. 13th 2011--  Tag release v1.0 : Analysis independence of the final state
 			      - construction of the TreeManagerMiniTrees code, and as consequence
 			      there will be no longer need to launch the datamanagercreator (it will
 			      be renamed to extractdatafiles or something like that)
-
+Nov. 16th 2011--  Tag release v2.0 : Deprecated selector dependence of each file
+  * Not needed to created a selector specific for each data file, getting directly the values via
+  the name of the branch. It slows the process a factor ~2.3. Nevertheless, it introduces clarity and
+  do not break the workflow creating a selector for each file (or group of files), also portability
+  between the different types of ntuples. It takes ~20m to process ~1.1M when the v01.00 took ~7m to
+  process ~1.1M of events.
+Nov. 19th 2011-- Tag release v02.01: Included the mixing signatures
+  * Still missing deep checks, but shows reasonable results
+Nov. 25th 2011-- Tag release v03.00: Included the AnalysisBase class
+  * Each concrete analysis inherits from AnalysisBase which take account the interaction with the data
+  * It is needed to virtualize some methods in AnalysisBase in order to let choose the concrete analysis
+  what wants to store
+Dec. 19th 2011-- Tag release v04.00: WZ analysis stable
+  * Deep cleaning of WZ analysis and incorporation of new cuts (dR internal bremsstralung). Results show
+  good agreement data-MC (see WZ2011_MCFall11 dir)
+  * CutLevels is promoted to a package (out of WH_Analysis), the class keeps the cuts order of every 
+  analysis.
+  * Deprecated TResultsTable package in favor of printtable.py script
+  * Analysis workflow up to now:
+     1. Call 'datamanagercreator -r <2011|2011A|2011B> -f <mmm|mme|eem|eee>' to create the 
+     datafiles containing the path to the root files (Name_datanames.dn)
+     2. Create a directory for each final state
+     3. Launch 'sendall.sh' script (not yet in this repository, to be incorporated soon)
+     4. Collect all outputs with 'collectall.sh' script (not yet in this repo)
+     5. Merge all final states into the one (lepton final state) using 'merge3leptonsfs -d dirch1,dirch2,...'
+     6. Do the plots using 'plotall.sh' (not yet in this repo)
+   You can see what are the actual process call in each script
 
 
 TODO:
-  1a.Change the data files to be used depending the lepton final state when use data 
-  1. Incorporate the latino's trees ----> DONE
-  2. Incorporate (create) an electron analysis ---> DONE
-  3. Incorporate (create) a lepton analysis  
-  4. Use directly the tree->GetLeaf("nameofthebranch")->GetValue(index) (index=0 if there is no vector) --> DONE
-     Checks:
-             * How much time is this slowing down the reading process?
-	     * Is the amount of time aceptable?
+  B. Include the Z+Jets madgraph (including also the needed modifications in the code
+     to avoid doble counting, see Ana's email)
   5. Check with the *.sh.e* the good behaviour of the job
-  6. Resume the outputs of the jobs (mainly the final table)
+  9. Put in the configuration the Working Point to be used in the Electrons
+  12.Generalize the sendcluster script such a way it was able to send any kind of cluster job, not only the 
+     runanalysis job
+  14.Include a 'resubmit' argument to sendcluster
+  15.Promote to 'Utils' the plotall.sh collectall.sh and sendall.sh scripts (just is needed an argument defining the 
+     kind of signal used)
 
 
