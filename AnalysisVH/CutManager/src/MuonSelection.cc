@@ -7,10 +7,9 @@
 
 const double kZMass = 91.1876; // TO BE INCLUDED IN THE CONFIG
 
-
-//Constructor
-MuonSelection::MuonSelection( TreeManager * data, const int & nLeptons) : 
-	CutManager(data,nLeptons),
+// Constructor
+MuonSelection::MuonSelection( TreeManager * data, const int & nTights, const int & nLeptons) : 
+	CutManager(data,nTights,nLeptons),
 	kMinMuPt1(-1),
 	kMinMuPt2(-1),      
 	kMinMuPt3(-1),          
@@ -32,7 +31,9 @@ MuonSelection::MuonSelection( TreeManager * data, const int & nLeptons) :
 	kMinNumOfMatches(-1),
 	kMinNValidPixelHitsInTrk(-1),
 	kMinNValidHitsInTrk(-1),
-	kMaxDeltaPtMuOverPtMu(-1)  
+	kMaxDeltaPtMuOverPtMu(-1),
+	kMaxLoosed0(-1),
+	kMaxLooseIso(-1)
 { 
 	// Initialize the selection codenames
 	_codenames.insert("PtMuonsCuts");
@@ -40,7 +41,6 @@ MuonSelection::MuonSelection( TreeManager * data, const int & nLeptons) :
 	_codenames.insert("ZMassWindow");
 	_codenames.insert("MinMET");
 }
-
 
 void MuonSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipmap,
 		const std::vector<std::string> & cuts)
@@ -164,6 +164,14 @@ void MuonSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 		{
 			kMinZMass = cut->second;
 		}
+		else if( cut->first == "MaxLoosed0" )
+		{
+			kMaxLoosed0 = cut->second;
+		}
+		else if( cut->first == "MaxLooseIso" )
+		{
+			kMaxLooseIso = cut->second;
+		}
 		/*else --> Noooo, pues esta funcion se utiliza tambien
 		           para recibir otros cortes genericos
 		{
@@ -210,7 +218,7 @@ bool MuonSelection::IsPass(const std::string & codename, const std::vector<doubl
 		if( varAux == 0 )
 		{
 			std::cerr << "MuonSelection::IsPass ERROR: "
-				<< "Don't pass as second argument a vector<double> "
+				<< "Waiting for a second argument a vector<double> "
 				<< "which contains the DeltaR between the muons. Exiting!!"
 				<< std::endl;
 			exit(-1);
@@ -219,7 +227,7 @@ bool MuonSelection::IsPass(const std::string & codename, const std::vector<doubl
 		if( varAux->size() != 1 )
 		{
 			std::cerr << "MuonSelection::IsPass ERROR: "
-				<< "Don't pass as second argument a vector<double> "
+				<< "Waiting for a second argument a vector<double> "
 				<< "which contains the DeltaR between the muons. Exiting!!"
 				<< std::endl;
 			exit(-1);
@@ -233,7 +241,7 @@ bool MuonSelection::IsPass(const std::string & codename, const std::vector<doubl
 		if( varAux == 0 )
 		{
 			std::cerr << "MuonSelection::IsPass ERROR: "
-				<< "Don't pass as second argument a vector<double> "
+				<< "Waiting for a second argument a vector<double> "
 				<< "which contains the invariant mass of the muon system."
 			        << " Exiting!!"
 				<< std::endl;
@@ -242,7 +250,7 @@ bool MuonSelection::IsPass(const std::string & codename, const std::vector<doubl
 		if( varAux->size() != 1 )
 		{
 			std::cerr << "MuonSelection::IsPass ERROR: "
-				<< "Don't pass as second argument a vector<double> "
+				<< "Waiting for a second argument a vector<double> "
 				<< "which contains the invariant mass of the muon system."
 			        << " Exiting!!"
 				<< std::endl;
@@ -256,7 +264,7 @@ bool MuonSelection::IsPass(const std::string & codename, const std::vector<doubl
 		if( varAux == 0 )
 		{
 			std::cerr << "MuonSelection::IsPass ERROR: "
-				<< "Don't pass as second argument a vector<double> "
+				<< "Waiting for a second argument a vector<double> "
 				<< "which contains the MET. Exiting!!"
 				<< std::endl;
 			exit(-1);
@@ -265,7 +273,7 @@ bool MuonSelection::IsPass(const std::string & codename, const std::vector<doubl
 		if( varAux->size() != 1 )
 		{
 			std::cerr << "MuonSelection::IsPass ERROR: "
-				<< "Don't pass as second argument a vector<double> "
+				<< "Waiting for a second argument a vector<double> "
 				<< "which contains the MET. Exiting!!"
 				<< std::endl;
 			exit(-1);
@@ -331,7 +339,6 @@ bool MuonSelection::IsInsideZWindow( const double & invariantMass ) const
 	return ( kMaxZMass > invariantMass && invariantMass > kMinZMass);
 }
 
-//FIXME: Asumo que estan ordenados por Pt!!! Commprobar
 //---------------------------------------------
 // Select muons
 // - Return the size of the vector with the index of the muons 
@@ -350,6 +357,14 @@ unsigned int MuonSelection::SelectBasicLeptons()
 
 	// Empty the selected muons vector --> Redundant to be removed
 	_selectedbasicLeptons->clear();
+	
+	
+	// Be ready the notightLeptons if proceed
+	if( _samplemode == CutManager::FAKEABLESAMPLE )
+	{
+		_notightLeptons = new std::vector<int>;
+	}
+
 	
 	// Loop over muons
 	for(unsigned int i=0; i < _data->GetSize<float>("T_Muon_Px"); ++i) 
@@ -456,15 +471,27 @@ unsigned int MuonSelection::SelectLeptonsCloseToPV()
 		// + R2: PT <  20
 		if(ptMu >= 20.0 && fabs(IPMu) > kMaxMuIP2DInTrackR1 ) 
 		{
+			if( _samplemode == CutManager::FAKEABLESAMPLE )
+			{
+				_notightLeptons->push_back(i);
+			}
 			continue;
 		}
 		else if(ptMu < 20.0  && fabs(IPMu) > kMaxMuIP2DInTrackR2 ) 
 		{
+			if( _samplemode == CutManager::FAKEABLESAMPLE )
+			{
+				_notightLeptons->push_back(i);
+			}
 			continue;
 		}
 		
 		if(fabs(deltaZMu) > kMaxDeltaZMu )
 		{
+			if( _samplemode == CutManager::FAKEABLESAMPLE )
+			{
+				_notightLeptons->push_back(i);
+			}
 			continue;
 		}
 		
@@ -572,6 +599,10 @@ unsigned int MuonSelection::SelectIsoLeptons()
 		
 		if( !isolatedMuon )
 		{
+			if( _samplemode == CutManager::FAKEABLESAMPLE )
+			{
+				_notightLeptons->push_back(i);
+			}
 			continue;
 		}
 		
@@ -666,3 +697,65 @@ unsigned int MuonSelection::SelectGoodIdLeptons()
       	return _selectedGoodIdLeptons->size();
 }
 
+//
+// Select the fakeable objects. The _selectedbasicLeptons
+// are substituted by this loose objects. At this level 
+// a loose ISO and ID cuts are applied (@fakeablevar), so
+// the sample produced are smaller than the basicLeptons
+// This function is only activated when the CutManager was
+// called in mode  CutManager::FAKEABLE
+//
+unsigned int MuonSelection::SelectLooseLeptons() 
+{
+	// First check is already was run over selected muons
+	// if not do it
+	if( _selectedbasicLeptons == 0)
+	{
+		this->SelectBasicLeptons();
+	}
+
+	std::vector<int> tokeep;
+
+	//Loop over selected muons
+	for(std::vector<int>::iterator it = _selectedbasicLeptons->begin();
+			it != _selectedbasicLeptons->end(); ++it)
+	{
+		unsigned int i = *it;
+
+		//Build 4 vector for muon (por que no utilizar directamente Pt
+		double ptMu = TLorentzVector(_data->Get<float>("T_Muon_Px",i), 
+				_data->Get<float>("T_Muon_Py",i), 
+				_data->Get<float>("T_Muon_Pz",i), 
+				_data->Get<float>("T_Muon_Energy",i)).Pt();
+
+		//[ID d0 Cut] 
+		double deltaZMu = 0;
+		double IPMu = 0;
+		deltaZMu = _data->Get<float>("T_Muon_dzPVBiasedPV",i);
+		IPMu     = _data->Get<float>("T_Muon_IP2DBiasedPV",i);
+		// Apply cut on d0
+		if( fabs(IPMu) > kMaxLoosed0 )
+		{
+			continue;
+		}
+
+		//[ISO cut]
+		double isolation =(_data->Get<float>("T_Muon_muSmurfPF",i) )/ptMu;
+
+		if( isolation > kMaxLooseIso )
+		{
+			continue;
+		}
+		// If we got here it means the muon is loose
+		tokeep.push_back(i);
+	}
+
+	// rebuilding the selected leptons, now are loose too
+	_selectedbasicLeptons->clear();
+	for(unsigned int k = 0; k < tokeep.size(); ++k)
+	{
+		_selectedbasicLeptons->push_back( tokeep[k] );
+	}
+
+	return _selectedbasicLeptons->size();
+}

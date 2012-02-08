@@ -20,10 +20,12 @@ class clustermanager(object):
 		import sys
 		
 		validkeys = [ 'dataname', 'cfgfilemap', 'njobs', 'precompile', 'pkgdir',\
-				'workingdir', 'basedir', 'finalstate', 'analysistype' ]
+				'workingdir', 'basedir', 'finalstate', 'analysistype',
+				'fakeable' ]
 		self.precompile = False
 		self.outputfiles= {}
 		self.leptoncfgfilemap = {}
+		self.fakeable = False
 		# Trying to extract the env variables to define 
 		# the path of the General package
 		if os.getenv("VHSYS"):
@@ -94,6 +96,15 @@ class clustermanager(object):
 				self.finalstate = value
 			elif key == 'analysistype':
 				self.analysistype = value
+			elif key == 'fakeable':
+				try:
+					leptons = value.split(",")
+					self.nLeptons = leptons[0]
+					self.nTights  = leptons[1]
+					self.fakeable = True
+				except AttributeError:
+					self.nLeptons = None
+					self.nTights = None
 		
 		# Checked if basedir and pkgpath are there
 		try:
@@ -117,15 +128,15 @@ class clustermanager(object):
 			# actual del runanalysis no necesito tener el dataname pues me lo busca el mismo !!??
 			self.filedatanames = os.path.join( os.getenv( "PWD" ), self.dataname+"_datanames.dn" )
 			if not os.path.exists(self.filedatanames):
-				cfglist = [ lepton+":"+cfg for lepton,cfg in self.leptoncfgfilemap.iteritems() ]
-				cfgstr = ''
-				for i in cfglist:
-					cfgstr += i+','
-				cfstr = cfgstr[:-1]
+				if "dataname" in self.originaldataname:
+					message  = "\033[31;1mclustermanager: ERROR\033[0m"
+					message += " Syntax mistake in '-d dataname' option. The argument 'dataname' must be just"
+					message += " the name, without '_dataname.dn'. So '"+self.originaldataname+"' is not valid"
+					raise message
 				# if not created previously
 				message  = "\033[31;1mclustermanager: ERROR\033[0m"
 				message += " I need the list of file names, execute:"
-				message += "\n'datamanager "+self.originaldataname+" -c "+cfgstr+"'"
+				message += "\n'datamanager "+self.originaldataname+" -f "+self.finalstate+"'"
 				message += "\nAnd then launch again this script"
 				raise message
 			# Extract the total number of events and split 
@@ -234,9 +245,15 @@ class clustermanager(object):
 		print "=== ",self.dataname,": Joining all the files in one"
 		# FIXME: Only there are 1 file, not needed the hadd
 		finalfile = os.path.join("Results",self.dataname+".root")
-		command = [ 'haddPlus', finalfile ]
-		for f in self.outputfiles.itervalues():
-			command.append( f )
+		# FIXED BUG: just cp when there is only one file, otherwise
+		#            there are problems with the TTree
+		if len(self.outputfiles) == 1:
+			# Note that when there is only 1 file, always its #task=1
+			command = [ 'cp', self.outputfiles[1], finalfile ]
+		else:
+			command = [ 'haddPlus', finalfile ]
+			for f in self.outputfiles.itervalues():
+				command.append( f )
 		p = Popen( command ,stdout=PIPE,stderr=PIPE ).communicate()
 		# Checking if everything was allright
 		totalevts = self.getevents(finalfile,True)
@@ -280,9 +297,13 @@ class clustermanager(object):
 		from subprocess import Popen,PIPE
 		import os
 
-		#command = [ 'qstat','-j',id ]
-		command = [ 'qstat','-u',os.getenv("USER"),'-g','d' ]
-		p = Popen( command ,stdout=PIPE,stderr=PIPE ).communicate()
+		try:
+			p = self.qstatoutput
+		except:
+			#command = [ 'qstat','-j',id ]
+			command = [ 'qstat','-u',os.getenv("USER"),'-g','d' ]
+			p = Popen( command ,stdout=PIPE,stderr=PIPE ).communicate()
+			self.qstatoutput = p
 
 		isincluster = False
 		taskstatus = {}
@@ -527,6 +548,8 @@ class clustermanager(object):
 		lines += "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"+self.libsdir+"\n"
 		lines += executable+" "+self.dataname+" -a "+self.analysistype+" -c "+self.cfgnames+\
 				" -d "+self.filedatanames+" -l "+self.finalstate+" -o "+outputname+"\n"
+		if self.fakeable:
+			lines = lines[:-1]+" -F "+self.nLeptons+","+self.nTights
 	
 		filename = self.dataname+".sh"
 		f = open(filename,"w")
@@ -638,33 +661,31 @@ if __name__ == '__main__':
 		message = 'sendcluster: I need python version >= 2.4'
 		sys.exit( message )
 	#Opciones de entrada
-	usage="usage: sendcluster <submit|harvest|delete> [options]"
+	usage="usage: sendcluster <\033[1;39msubmit\033[1;m|\033[1;39mharvest\033[1;m|"+\
+			"\033[1;39mdelete\033[1;m> [options]"
 	parser = OptionParser(usage=usage)
-	parser.set_defaults(shouldCompile=False,jobsNumber=0)
-	#parser.add_option( '-a', '--analysis', action='store', type='string', dest='antype', help="Analysis to be processed WZ|WH" )
-	#parser.add_option( '-w', '--wd', action='store', type='string', dest='workingdir', help="Working directory used with the '-a harvest' option")
-	#parser.add_option( '-f', '--finalstate', action='store', type='string', dest='finalstate', help="Final state signature: mmm eee mme eem")
+	parser.set_defaults(shouldCompile=False,jobsNumber=0,fakeasdata=False)
 	parser.add_option( '--pkgdir', action='store', type='string', dest='pkgdir', help="Analysis package directory (where the Analysis live)")
 	parser.add_option( '--basedir', action='store', type='string', dest='basedir', help="Complete package directory")
-	#parser.add_option( '-d', '--dataname',  action='store', type='string', dest='dataname', help='Name of the data (see runanalysis)' )
-	#parser.add_option( '-j', '--jobs',  action='store', type='int',    dest='jobsNumber', help='Number of jobs' )
-	#parser.add_option('-c', '--cfg' ,  action='store', type='string', dest='config', help='name of the lepton and config file (absolute path), \':\' separated' )
-	#parser.add_option( '-p', '--precompile',action='store_true', dest='shouldCompile', help='Set if exist a previous job to do compilation' \
-	#		' (launching datamanager executable)' )
 	
-	group = OptionGroup(parser, "submit options","")
+	group = OptionGroup(parser, "\033[1;39msubmit\033[1;m options","")
 	group.add_option( '-a', '--analysis', action='store', type='string', dest='antype', help="Analysis to be processed WZ|WH" )
 	group.add_option( '-f', '--finalstate', action='store', type='string', dest='finalstate', help="Final state signature: mmm eee mme eem")
+	group.add_option( '-F', '--fakeable', action='store', dest='fakeable', metavar="N,T", help="Fakeable mode, so N,T (where N=Leptons and T=Tight leptons."+\
+			" Used with the '-k' option")
+	group.add_option( '-k', '--fakeasdata', action='store_true', dest='fakeasdata', help="Fakeable mode ALLOWING whatever datasample (not only"+\
+			" the so called Fakes) to be created the N,T sample. So it must use with the '-F' option.")
 	group.add_option( '-d', '--dataname',  action='store', type='string', dest='dataname', help='Name of the data (see runanalysis -h). Also'
 			' not using this option, the script will use all the datafiles *_datanames.dn found in the working directory to launch process')
 	group.add_option( '-j', '--jobs',  action='store', type='int',    dest='jobsNumber', help='Number of jobs. Not using this option, the script'
 			' will trying to found how many jobs are needed to create a 10min job')
-	group.add_option( '-c', '--cfg' ,  action='store', type='string', dest='config', help='name of the lepton and config file (absolute path), \':\' separated' )
+	group.add_option( '-c', '--cfg' ,  action='store', type='string', dest='config', metavar="LEPTON:cfgfile[,..]",\
+			help='name of the lepton and config file (absolute path), \':\' separated' )
 	group.add_option( '-p', '--precompile',action='store_true', dest='shouldCompile', help='Set if exist a previous job to do compilation' \
-			' (launching datamanager executable)' )
+			' (launching datamanager executable) \033[1;31mTO BE DEPRECATED\033[1;m' )
 	parser.add_option_group(group)
 
-	groupharvest = OptionGroup(parser,"harvest and delete options","")
+	groupharvest = OptionGroup(parser,"\033[1;39mharvest\033[1;m and \033[1;39mdelete\033[1;m options","")
 	groupharvest.add_option( '-w', '--wd', action='store', type='string', dest='workingdir', help="Working directory used with the '-a harvest' option")
 	parser.add_option_group(groupharvest)
 	
@@ -726,14 +747,34 @@ if __name__ == '__main__':
 		if not opt.antype:
 			message = "\033[31;1msendcluster: ERROR\033[0m the '-a' option is mandatory"
 			sys.exit( message )
+		# Also fakeable or not:
+		if not opt.fakeable:
+			opt.fakeable=False
+		# Checking the correct use of -k option 
+		if opt.fakeasdata:
+			if not opt.fakeable:
+				message = "\033[31;1msendcluster: ERROR\033[0m It is mandatory the '-F' option"+\
+						" with the '-k' option"
 		# Instantiate and submit
 		manager = None
 		for dataname in datanameslist:
 			print "========= Dataname: %s" % dataname
+			# Checks and some changes
+			fakeable = opt.fakeable
+			if not opt.fakeable:
+				if dataname == "Fakes":
+					message = "\033[31;1msendcluster: ERROR\033[0m It is mandatory the '-F' option"+\
+							" with the 'Fakes' dataname"
+					sys.exit( message )			
+			else:
+				if dataname != "Fakes" and not opt.fakeasdata:
+					# not sending to the instance
+					fakeable = False
+
 			manager = clustermanager('submit',dataname=dataname,cfgfilemap=leptoncfgmap,\
 					njobs=opt.jobsNumber, pkgdir=opt.pkgdir,\
 					basedir=opt.basedir,finalstate=opt.finalstate, \
-					analysistype=opt.antype)
+					analysistype=opt.antype,fakeable=fakeable)
 
 	#elif opt.action == 'harvest':
 	elif args[0] == 'harvest':

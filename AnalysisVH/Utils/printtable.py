@@ -79,17 +79,25 @@ class table(object):
 			raise "\033[1;31mtable ERROR\033[1;m Initialize your"+\
 					" environment (VHSYS env variable needed)"
 
+		# Reduced table or not
+		self.reduced   = False
+		self.fakemode  = False
+
 		formatprov = None
 
-		validkeywords = [ "format" ]
+		validkeywords = [ "format", "isreduced", "fakemode" ]
 		for key,value in keywords.iteritems():
 			if not key in keywords.keys():
 				message  = "\033[1;31mtable ERROR\033 Incorrect instantiation of 'table'"
 				message += " class. Valid keywords are: "+str(validkeywords)
 				raise message
+
 			if key == 'format':
 				formatprov = value
-
+			elif key == 'isreduced':
+				self.reduced = value
+			elif key == "fakemode":
+				self.fakemode = value
 
 		# available filenames
 		self.filenames = glob.glob("cluster_*/Results/*.root")
@@ -100,17 +108,29 @@ class table(object):
 			# Removing
 			for f in nonsignalfiles:
 				self.filenames.remove(f)
+		# Fakes mode where fakes acting as Data (to compare this fakes with 
+		# several Monte Carlo)
+		self.fakeasdata= False
+		if signal == "Fakes":
+			self.fakeasdata = True
+
 		# samples names
 		self.samples = map(lambda x: os.path.basename(x).split(".")[0], self.filenames )
 		self.filesamplemap = dict(map(lambda x: (x,os.path.basename(x).split(".")[0]), self.filenames ))
 		# Check the signal and data are there
 		if not signal in self.samples:
 			raise "\033[1;31mtable ERROR\033[1;m The signal introduced '"+signal+"' has not been found."
-		if not "Data" in self.samples:
-			raise "\033[1;31mtable ERROR\033[1;m The data is not available"
+		if not self.fakeasdata:
+			if not "Data" in self.samples:
+				raise "\033[1;31mtable ERROR\033[1;m The data is not available"
 		# signal name
-		self.signal  = signal
-		self.data    = "Data"
+		# Adapting the code to the mode (fakes,...)
+		if self.fakeasdata:
+			self.signal = ""
+			self.data   = "Fakes"
+		else:
+			self.signal  = signal
+			self.data    = "Data"
 
 		# Ordered samples for column titles
 		self.columntitles = []
@@ -141,7 +161,39 @@ class table(object):
 		# 1a) Set the total events weighted (in the self.values data member)
 		for f in self.filenames:
 			self.setweightedevents(f)
-		
+
+
+		# 2) Merge Z+Jets, Drell-Yan and other backgrounds in order to
+		# get a more printable table, just if it was demanded
+		if self.reduced:
+			valdict = {}
+			for cut,sampledict in self.values.iteritems():
+				valdict[cut] = {}
+				for totalsample in [ "DY", "Z+Jets", "Other" ]:
+					valdict[cut][totalsample] = self.addupsample(cut,totalsample)
+
+			# Deleting the old keys and substituing by the new ones
+			for cut in self.cutordered:
+				for sample2add in [ "DY", "Z+Jets", "Other" ]:
+					for sample2del in self.getsamplecomponents(sample2add):
+						# Deleting
+						self.values[cut].pop(sample2del)
+					# New total samples
+					self.values[cut][sample2add] = valdict[cut][sample2add]
+			# Redoing the column title and sample datamember
+			self.columntitles = []
+			self.samples = []
+			for sample in self.values[self.cutordered[0]].iterkeys():
+				self.samples.append( sample )
+				if sample == self.signal or sample == self.data:
+					continue
+				if self.fakemode and (sample == "DY" or sample == "Z+Jets"):
+					continue
+				self.columntitles.append(sample)
+			self.columntitles.append( "TotBkg" )
+			self.columntitles.append( self.data )
+			self.columntitles.append( self.signal )
+
 		# format specific
 		self.format = format()
 		if formatprov:
@@ -156,7 +208,10 @@ class table(object):
 		f = TFile.Open(filename)
 		if "Data.root" in filename:
 			weight = 1.0
+		elif "Fakes.root" in filename:
+			weight = 1.0
 		else:
+			weight = 1.0
 			xs = array('d',[0.0])
 			luminosity = array('d',[0.0])
 			neventsample = array('i',[0])
@@ -176,6 +231,59 @@ class table(object):
 			self.values[cut][sample] = (weight*histocut.GetBinContent(i+1),weight*histocut.GetBinError(i+1))
 
 		f.Close()
+
+	def addupsample(self, cut, totalsample ):
+		""".. function::addupsample(cut, totalsample ) -> (value,error)
+		
+		Extract the total yield adding up the different components of 
+		some added up sample. Valid 'totalsample' and components 
+		(see getsamplecomponents function)
+
+		:param cut: cut name
+		:type cut: str
+		:param totalsample: final name of the sample which will be add up
+		:type totalsample: str
+
+		:return: value and error added up
+		:rtype: (float,float)
+		"""
+		from math import sqrt
+
+		components = self.getsamplecomponents(totalsample)
+		value = 0.0
+		error = 0.0
+		for i in components:
+			value += self.values[cut][i][0]
+			error += self.values[cut][i][1]**2.0
+
+		return (value,sqrt(error))
+
+
+	def getsamplecomponents(self, totalsample ):
+		""".. function::getsamplecomponents( totalsample ) -> [ 'comp1', comp1, ... ]
+
+		Return the names of the samples which define a 'totalsample'
+
+		:param totalsample: final name of the sample which will be add up
+		:type totalsample: str
+		
+		:return: list of the samples names which will compose the total sample
+		:rtype:  [ str, str, ... ] 
+		"""
+		components = []
+		if totalsample == "DY":
+			components = [ "DYee_Powheg", "DYmumu_Powheg", "DYtautau_Powheg" ]
+		elif totalsample == "Z+Jets":
+			components = [ "Zee_Powheg", "Zmumu_Powheg", "Ztautau_Powheg" ]
+		elif totalsample == "Other":
+			components = [ "TbarW_DR", "TW_DR", "WW", "WJets_Madgraph" ]
+		else:
+			message  = "\033[1;31mgetsamplecomponents ERROR\033 '"+totalsample+"'" 
+			message += " not recognized. Valid samples are: DY Z+Jets Other"
+			raise message
+
+		return components
+
 
 	def getvaluestr(self, cut,sample):
 		""".. function::getvaluestr( cut, sample ) -> valueanderror
@@ -293,7 +401,7 @@ class table(object):
 	
 		if nafterpoint > 3:
 			totalvalstr = "("+valstr+self.format.plusminus+errstr+")"+self.format.cdot+"10"+\
-					self.format.exponentstart+str(exponent)+self.format.exponentend
+					self.format.exponentstart+"-"+str(exponent)+self.format.exponentend
 		else:
 			totalvalstr = valstr+self.format.plusminus+errstr
 		return totalvalstr
@@ -362,11 +470,15 @@ if __name__ == '__main__':
 		message = '\033[1;31printtable ERROR\033[1;m I need python version >= 2.4'
 		sys.exit( message )
 	
-	usage="usage: printtable <WZ|WHnnn> [options]"
+	usage="usage: printtable <WZ|WHnnn|Fakes> [options]"
 	parser = OptionParser(usage=usage)
-	parser.set_defaults(output="table.tex")
+	parser.set_defaults(output="table.tex",isreduced=False,fakemode=False,fakeasdata=False)
 	parser.add_option( '-f', '--filename', action='store', type='string', dest='output', help="Output filename, the suffix defines the format," \
 			" can be more than one comma separated" )
+	parser.add_option( '-F', action='store_true', dest='fakemode', help="Activate the fake mode where the Z+Jets, DY and ttbar are estimated with" \
+			" the fakeable object method. Incompatible with '\033[1;39mFakes\033[1;m' signal" )
+	parser.add_option( '-r', action='store_true', dest='isreduced', help="More printable version of the table, where several samples have been merged" \
+			" into one" )
 
 	( opt, args ) = parser.parse_args()
 
@@ -374,17 +486,20 @@ if __name__ == '__main__':
 		message = "\033[1;31mprinttable ERROR\033[1;m Missing mandatory argument signal, see usage."
 		sys.exit(message)
 	signal = args[0]
-	if signal != "WZ" and signal.find("WH") != 0:
+	if signal != "WZ" and signal.find("WH") != 0 and signal != "Fakes":
 		message = "\033[1;31mprinttable ERROR\033[1;m Signal '"+signal+"' not implemented, see usage."
 		sys.exit(message)
 
 	if signal.find("WH") == 0:
 		signal = signal.replace("WH","WHToWW2L")
 
+	if opt.fakeasdata and opt.fakemode:
+		message = "\033[1;31mprinttable ERROR\033[1;m Incompatible options '-F' and '-k'. See help."
+		sys.exit(message)
 
 	print "\033[1;34mprinttable INFO\033[1;m Creating yields table for "+signal+" analysis",
 	sys.stdout.flush()
-	t = table(signal)
+	t = table(signal,isreduced=opt.isreduced,fakemode=opt.fakemode)
 	print "( ",
 	sys.stdout.flush()
 	for fileoutput in opt.output.split(","):

@@ -33,8 +33,9 @@ class LeptonMixingSelection : public CutManager
 {
 	public:
 		//! Constructor
-		LeptonMixingSelection( TreeManager * data, const int & WPlowpt, const int & WPhighpt, 
-				const int & nLeptons = 3 );
+		LeptonMixingSelection( TreeManager * data, const int & WPlowpt, 
+				const int & WPhighpt, 
+				const int & nTights, const int & nLeptons);
 		//! Destructor
 		virtual ~LeptonMixingSelection();
 		
@@ -49,8 +50,32 @@ class LeptonMixingSelection : public CutManager
 				const std::vector<double> * auxVar = 0 ) const;
 
 
+		//! Get the code names of the selection cuts: as there is no difference
+		//! between leptons we can use whatever we want
+		virtual std::vector<std::string> GetCodenames() const;
+		//virtual std::vector<std::string> GetCodenames(const LeptonTypes & leptontype) const;
+		
 		//-- Selection
 		//---------------------------------------------
+		//! Get The lepton type for the i-esim lepton (tight+notight)
+		virtual LeptonTypes GetLeptonType(const unsigned int & index) const; 
+		//! Get The lepton type for the i-esim tight lepton
+		virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const; 
+		//! Get The lepton type for the i-esim no tight lepton
+		virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const; 
+
+		//! Overloaded Reset method in order to deal with the extra data members
+		//! used by this class
+		virtual void Reset();
+
+	private:
+		//! Pt cuts for both muons and electrons
+		bool IsPassPtCuts(const int & nMuons, const int & nElecs) const;
+
+		//! Check if the 'index' is found in the vector 'leptonsvector'
+		bool isfoundindex(const std::vector<int> * const leptonsvector, 
+				const int & index) const;
+		
 		//! Select basic muons: 
 		//! - with pt > MinPt and fabs(eta) < eta 
 		virtual unsigned int SelectBasicLeptons();
@@ -63,22 +88,12 @@ class LeptonMixingSelection : public CutManager
 		//! Select Good Identified Leptons: 
 		//! - Depends on ...
 		virtual unsigned int SelectGoodIdLeptons();
+		// Loose leptons 
+		virtual unsigned int SelectLooseLeptons();
 
-		//! Get the code names of the selection cuts: as there is no difference
-		//! between leptons we can use whatever we want
-		virtual std::vector<std::string> GetCodenames() const;
-		//virtual std::vector<std::string> GetCodenames(const LeptonTypes & leptontype) const;
+		//! Syncronize lepton type with indices vector when fake mode active
+		virtual void SyncronizeLeptonType();
 		
-		//! Get The lepton type for the i-esim lepton // FIXME check if _lept.. != 0
-		virtual LeptonTypes GetLeptonType(const unsigned int & index) const; 
-
-	private:
-		//! Pt cuts for both muons and electrons
-		bool IsPassPtCuts(const int & nMuons, const int & nElecs) const;
-
-		//! Check if the 'index' is found in the vector 'leptonsvector'
-		bool isfoundindex(const std::vector<int> * const leptonsvector, 
-				const int & index) const;
 
 		//! The muon cut manager
 		MuonSelection * fMuonSelection;
@@ -96,6 +111,13 @@ class LeptonMixingSelection : public CutManager
 		std::vector<LeptonTypes> * _leptontypecloseToPVLeptons;
 		std::vector<LeptonTypes> * _leptontypeIsoLeptons;
 		std::vector<LeptonTypes> * _leptontypeGoodIdLeptons;
+
+		//! Vector containing the type of lepton which corresponds to the 
+		//! index vector of the _tightLeptons
+		std::vector<LeptonTypes> * _tightLeptonTypes;
+		//! Vector containing the type of lepton which corresponds to the 
+		//! index vector of the _notightLeptons
+		std::vector<LeptonTypes> * _notightLeptonTypes;
 };
 
 #endif

@@ -207,7 +207,7 @@ const std::vector<TString> * extractdatafiles(TString dataName, const char * run
 	
 
 	std::vector<TString> * datafiles = new std::vector<TString>;
-	if( dataName.Contains("Data") )
+	if( dataName.Contains("Data") || dataName.Contains("Fakes") )
 	{
 		// 1) Take the files which corresponds to each run period
 		std::map<std::string,std::vector<std::string> > pathfiles =
@@ -349,7 +349,7 @@ void display_usage()
 	std::cout << "    Z + Jets Madgraph: ZJets_Madgraph" << std::endl;
 	std::cout << "    Z + Jets Powheg:   DYee_Powheg DYmumu_Powheg Dytautau_Powheg Zee_Powheg Zmumu_Powheg Ztautau_Powheg" << std::endl;
 	std::cout << "    Zbb + Jets:        Zbb" << std::endl;
-	std::cout << "    Other backgrounds: WZ ZZ WW TTbar_Madgraph WJets_Madgraph TW TbarW" << std::endl;
+	std::cout << "    Other backgrounds: WZ ZZ WW TTbar_Madgraph WJets_Madgraph TW TbarW Fakes" << std::endl;
 }
 
 int main(int argc, char *argv[])
@@ -437,13 +437,6 @@ int main(int argc, char *argv[])
 	// Signal
         knowndata.insert("WH120");
         knowndata.insert("WH130");
-        //knowndata.insert("WH140");
-        //knowndata.insert("WH150");
-        //knowndata.insert("WH160");
-        //knowndata.insert("WH170");
-        //knowndata.insert("WH180");
-        //knowndata.insert("WH190");
-        //knowndata.insert("WH200");
 	// Z+jets
 	knowndata.insert("ZJets_Madgraph");
 	knowndata.insert("DYee_Powheg");
@@ -462,6 +455,7 @@ int main(int argc, char *argv[])
 	knowndata.insert("WJets_Madgraph");
 	knowndata.insert("TW_DR");
 	knowndata.insert("TbarW_DR");
+	knowndata.insert("Fakes");
 
 	//Data 
 	knowndata.insert("Data");

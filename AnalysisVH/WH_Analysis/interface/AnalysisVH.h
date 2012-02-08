@@ -39,22 +39,22 @@ class AnalysisVH : public AnalysisBase
 			fHNSelectedPVLeptons,     //Selected Leptons close to the PV
 			fHNSelectedIsoLeptons,    //Selected Isolated leptons
 			fHNSelectedIsoGoodLeptons,//Selected Isolated Good Leptons
-			fHMinDeltaRLp1Lp2,        //Smallest DeltaR between 2 opp. sign leptons
-			fHMaxDeltaRLp1Lp2,         //Largest DeltaR between 2 opp. sign leptons
-			fHMinDeltaPhiLp1Lp2,      //Smallest Delta phi between 2 opp. sign leptons
-			fHMaxDeltaPhiLp1Lp2,      //Largest Delta phi between 2 opp. sign leptons
-			fHLeptonCharge,           //Sum charges of leptons
-			fHHInvMass,               //Invariant mass of leptons supposedly from H
-			fHZInvMass,               //Invariant mass of leptons in/out of Z peak
-			fHMET,                     //Missing ET after inv mass cut
-			fHZInvMassAfterZCand,
-			fHHInvMassAfterZCand,
-			fHMETAfterZCand,
-			fHNJets,
-			fHTransversMass,
-			fHTrileptonMass,
-			fHTrileptonMassAfterZCand
-
+			fHMinDeltaRLp1Lp2,        //Smallest DeltaR between 2 opp. sign leptons    |
+			fHMaxDeltaRLp1Lp2,         //Largest DeltaR between 2 opp. sign leptons    |_ After JetVeto cut
+			fHMinDeltaPhiLp1Lp2,      //Smallest Delta phi between 2 opp. sign leptons |
+			fHMaxDeltaPhiLp1Lp2,      //Largest Delta phi between 2 opp. sign leptons  |
+			fHLeptonCharge,           //Sum charges of leptons before 2 opp. sign leptons cut
+			fHHInvMassAfterJetVeto,   //Invariant mass of leptons from H after JetVeto cut
+			fHHInvMass,               //Invariant mass of leptons supposedly from H after all cuts
+			fHMET,                    //Missing ET after all cuts
+			fHMETAfterWCand,        // MET after jet veto cut
+			fHNJets,                  // Number of Jets before the jet veto
+			fHTransversMass,            // Transverse mass between all leptons and MET after all cuts
+			fHTransversMassAfterWCand,// Transverse mass between all leptons and MET after jet veto cut
+			fHTrileptonMass,            //Invariant mass of the 3 leptons after all cuts
+			fHTrileptonMassAfterWCand,//Invariant mass of the 3 leptons after jet veto
+			fHHT,                        //HT = sum of all transverse energy in the event
+			fHHTAfterWCand            //HT after jet veto
 		};
 
 		//! Constructor (TO BE DEPRECATED: tree)

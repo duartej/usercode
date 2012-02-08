@@ -36,7 +36,8 @@ class MuonSelection : public CutManager
 	friend class LeptonMixingSelection;
 
 	public:
-		MuonSelection( TreeManager * data, const int & nLeptons = 3 );
+		//! Constructor
+		MuonSelection( TreeManager * data, const int & opmode, const int & nLeptons);
 		virtual ~MuonSelection() { }
 
 		// Initialization of datamembers
@@ -54,6 +55,30 @@ class MuonSelection : public CutManager
 
 		//-- Selection
 		//---------------------------------------------
+		//! Get The lepton type for the i-esim good lepton  (tight+notight)
+		virtual LeptonTypes GetLeptonType(const unsigned int & index) const { return MUON; }	
+		//! Get The lepton type for the i-esim Tight lepton 
+		virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const { return MUON;}
+		//! Get The lepton type for the i-esim Tight lepton 
+		virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const { return MUON; }	
+		// Loose leptons 
+		virtual unsigned int SelectLooseLeptons();
+
+
+		// Get the code names of the selection cuts
+		virtual std::vector<std::string> GetCodenames() const;
+
+	private:
+		//-- The effective cuts whose would be called by IsPass
+		//   method
+		bool IsPassPtCuts() const;
+		bool IsPassDeltaRCut(const double & deltaRMuMu) const; 
+		bool IsInsideZWindow(const double & invariantMass) const; 
+		bool IsPassMETCut(const double & MET) const;
+		
+		//! Syncronize lepton type with indices vector when fake mode active
+		virtual void SyncronizeLeptonType() { /* Not neeed for this concrete class */ }
+
 		// Select basic muons: 
 		// - with pt > MinPt and fabs(eta) < eta 
 		//   (see IsPassAcceptanceCuts function)
@@ -67,18 +92,6 @@ class MuonSelection : public CutManager
 		// Select Good Identified Leptons: 
 		// - Depends on 
 		virtual unsigned int SelectGoodIdLeptons();
-		virtual LeptonTypes GetLeptonType(const unsigned int & index) const { return MUON; }
-
-		// Get the code names of the selection cuts
-		virtual std::vector<std::string> GetCodenames() const;
-
-	private:
-		//-- The effective cuts whose would be called by IsPass
-		//   method
-		bool IsPassPtCuts() const;
-		bool IsPassDeltaRCut(const double & deltaRMuMu) const; 
-		bool IsInsideZWindow(const double & invariantMass) const; 
-		bool IsPassMETCut(const double & MET) const;
 
 		// The list of the selection chain codenames 
 		std::set<std::string> _codenames;
@@ -110,6 +123,10 @@ class MuonSelection : public CutManager
 		int    kMinNValidPixelHitsInTrk;
 		int    kMinNValidHitsInTrk     ;
 		double kMaxDeltaPtMuOverPtMu   ;
+
+		// Loose leptons
+		double kMaxLoosed0;
+		double kMaxLooseIso;
 		
 	ClassDef(MuonSelection,0);
 };
