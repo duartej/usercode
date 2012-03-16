@@ -8,28 +8,37 @@
 // Jordi Duarte Campderros (based on the Jason Slaunwhite 
 // and Jeff Klukas coded from the HLTriggerOffline/Muon package
 //
-// $Id: HLTHiggsValidator.cc,v 1.1 2012/03/12 16:34:41 duarte Exp $
+// $Id: HLTHiggsValidator.cc,v 1.1 2012/03/15 17:53:01 duarte Exp $
 //
 //
 
 // system include files
 //#include<memory>
-#include<iostream>
+
+//#include "FWCore/Framework/interface/MakerMacros.h"
 
 #include "HLTriggerOffline/Higgs/interface/HLTHiggsValidator.h"
+#include "HLTriggerOffline/Higgs/src/EVTColContainer.cc"
 
-#include "TFile.h"
-#include "TDirectory.h"
-#include "TPRegexp.h"
 //////// Class Methods ///////////////////////////////////////////////////////
 // Constructor
 HLTHiggsValidator::HLTHiggsValidator(const edm::ParameterSet& pset) :
       	_pset(pset),
-	_hltProcessName(pset.getParameter<string>("hltProcessName")),
-	_analysisnames(pset.getParameter<vstring>("analysis")),
+	_hltProcessName(pset.getParameter<std::string>("hltProcessName")),
+	_analysisnames(pset.getParameter<std::vector<std::string> >("analysis")),
 	_collections(0),
 	_dbe(0)
 {
+	_collections = new EVTColContainer;
+}
+
+HLTHiggsValidator::~HLTHiggsValidator()
+{
+	if( _collections != 0 )
+	{
+		delete _collections;
+		_collections = 0;
+	}
 }
 
 
@@ -44,25 +53,10 @@ void HLTHiggsValidator::beginRun(const edm::Run & iRun, const edm::EventSetup & 
 	    	return;
       	}
 	
-      	// Get the set of trigger paths we want to make plots for
-	/*std::set<std::string> hltPaths;
-      	for(size_t i = 0; i < _hltPathsToCheck.size(); ++i) 
-	{
-	     	TPRegexp pattern(_hltPathsToCheck[i]);
-	    	for(size_t j = 0; j < _hltConfig.triggerNames().size(); ++j)
-		{
-			if(TString(_hltConfig.triggerNames()[j]).Contains(pattern))
-			{
-				hltPaths.insert(_hltConfig.triggerNames()[j]);
-			}
-		}
-      	}*/
-
-	//std::vector<std::string> hltPathsV(hltPaths.begin(),hltPaths.end());
        
-	for(size_t i = 0; i < _analysisnames.size() < ++i)
+	for(size_t i = 0; i < _analysisnames.size() ; ++i)
 	{
-		HLTHiggsSubAnalysis analyzer(pset_, _analysisnames.at(i));
+		HLTHiggsSubAnalysis analyzer(_pset, _analysisnames.at(i));
 		_analyzers.push_back(analyzer);
 	}
 	// Call the Plotter beginRun (which stores the triggers paths..:)
@@ -75,20 +69,16 @@ void HLTHiggsValidator::beginRun(const edm::Run & iRun, const edm::EventSetup & 
 }
 	
 
-void HLTHiggsValidator::analyze(const Event& iEvent, const EventSetup& iSetup)
+void HLTHiggsValidator::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
+	// Initialize the event collections
+	this->_collections->reset();
+
       	for(std::vector<HLTHiggsSubAnalysis>::iterator iter = _analyzers.begin(); 
 			iter != _analyzers.end(); ++iter) 
 	{
-	     	iter->analyze(iEvent, iSetup,this->_collections);
+	     	iter->analyze(iEvent, iSetup, this->_collections);
       	}
-	
-	// Deleting after analysis
-	if( this->_collections != 0)
-	{
-		delete this->_collections;
-		this->_collections = 0;
-	}
 }
 
 
@@ -115,4 +105,4 @@ void HLTHiggsValidator::endJob()
 
 
 //define this as a plug-in
-DEFINE_FWK_MODULE(HLTHiggsValidator);
+//DEFINE_FWK_MODULE(HLTHiggsValidator);

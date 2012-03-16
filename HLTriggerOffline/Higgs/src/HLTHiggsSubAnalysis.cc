@@ -1,28 +1,29 @@
 
 /** \file HLTHiggsSubAnalysis.cc
- *  $Date: 2011/09/07 16:31:47 $
+ *  $Date: 2012/03/15 17:53:01 $
  *  $Revision: 1.1 $
  */
 
 
 
-#include "HLTriggerOffline/Higgs/interface/HLTHiggsSubAnalysis.h"
+
 
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 #include "DataFormats/Common/interface/Handle.h"
-#include "DataFormats/MuonReco/interface/Muon.h"
-#include "DataFormats/MuonReco/interface/MuonFwd.h"
-#include "DataFormats/EgammaCandidates//interface/GsfElectron.h"
-#include "DataFormats/EgammaCandidates//interface/GsfElectronFwd.h"
+
+#include "HLTriggerOffline/Higgs/interface/HLTHiggsSubAnalysis.h"
+#include "HLTriggerOffline/Higgs/src/EVTColContainer.cc"
 
 #include<set>
 
 HLTHiggsSubAnalysis::HLTHiggsSubAnalysis(const edm::ParameterSet & pset,
 		const std::string & analysisname) :
-	_genParticleLabel(pset.getParameter<vstring>("genParticleLabel")),
-	_analysisname(analysisname)
+	_analysisname(analysisname),
+	_pset(pset),
+	_genParticleLabel(pset.getParameter<std::string>("genParticleLabel")),
+	_dbe(0)
 {
 	edm::ParameterSet anpset = pset.getParameter<edm::ParameterSet>(analysisname);
 	//FIXME: CHECK ERRORS
@@ -30,8 +31,8 @@ HLTHiggsSubAnalysis::HLTHiggsSubAnalysis(const edm::ParameterSet & pset,
 	// Collections labels (but genparticles already initialized)
 	this->bookobjects( anpset );
 
-	_hltPathsToCheck = anpset.getParameter<vstring>("hltPathsToCheck");
-	_dbe = Service<DQMStore>().operator->();
+	_hltPathsToCheck = anpset.getParameter<std::vector<std::string> >("hltPathsToCheck");
+	_dbe = edm::Service<DQMStore>().operator->();
       	_dbe->setVerbose(0);
 }
 
@@ -46,15 +47,15 @@ void HLTHiggsSubAnalysis::beginJob()
 
 
 
-void HLTHiggsSubAnalysis::beginRun(const Run & iRun, const EventSetup & iSetup)
+void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup & iSetup)
 {
 	std::string baseDir = "HLT/Higgs/"+_analysisname+"/";
       	_dbe->setCurrentFolder(baseDir);
 
       	// Initialize the plotters (analysers for each trigger path)
 	_analyzers.clear();
-  	for(std::vector<std::string>::iterator iPath = _hltPaths.begin(); 
-			iPath != _hltPaths.end(); iPath++) 
+  	for(std::vector<std::string>::iterator iPath = _hltPathsToCheck.begin(); 
+			iPath != _hltPathsToCheck.end(); iPath++) 
 	{
 		std::string path = * iPath;
 		std::string shortpath = path;
@@ -63,12 +64,12 @@ void HLTHiggsSubAnalysis::beginRun(const Run & iRun, const EventSetup & iSetup)
 			shortpath = path.substr(0, path.rfind("_v"));
 		}
       				
-		HLTHiggsPlotter analyzer(pset_, shortpath, this->getObjectsType(), _dbe);
+		HLTHiggsPlotter analyzer(_pset, shortpath, this->getObjectsType(), _dbe);
 		_analyzers.push_back(analyzer);
     	}
       	// Call the beginRun (which books all the histograms)
-      	for (std::vector<HLTHiggsPlotter>::iterator it = _analyzers.begin(); 
-			it != _analyzers.end(); ++iter) 
+      	for(std::vector<HLTHiggsPlotter>::iterator it = _analyzers.begin(); 
+			it != _analyzers.end(); ++it) 
 	{
 	    	it->beginRun(iRun, iSetup);
 	}
@@ -76,7 +77,7 @@ void HLTHiggsSubAnalysis::beginRun(const Run & iRun, const EventSetup & iSetup)
 
 
 
-void HLTHiggsSubAnalysis::analyze(const Event & iEvent, const EventSetup & iSetup, 
+void HLTHiggsSubAnalysis::analyze(const edm::Event & iEvent, const edm::EventSetup & iSetup, 
 		EVTColContainer * collections)
 {
       	static int eventNumber = 0;
@@ -85,7 +86,7 @@ void HLTHiggsSubAnalysis::analyze(const Event & iEvent, const EventSetup & iSetu
 		<< "Event: " << eventNumber;
 
 	// Initialize the collection (the ones which hasn't been initiliazed yet)
- 	this->initobjects(collections);
+ 	this->initobjects(iEvent,collections);
 	
 	for(std::vector<HLTHiggsPlotter>::iterator it = _analyzers.begin();
 			it != _analyzers.end(); ++it)
@@ -95,11 +96,11 @@ void HLTHiggsSubAnalysis::analyze(const Event & iEvent, const EventSetup & iSetu
 }
 
 
-const std::vector<unsigned int> getObjectsType() const
+const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType() const
 {
 	std::vector<unsigned int> objsType;
-	for(std::map<unsigned int,std::string>::iterator it = _recLabel.begin();
-			it != _recLabel.end(); ++it)
+	for(std::map<unsigned int,std::string>::const_iterator it = _recLabels.begin();
+			it != _recLabels.end(); ++it)
 	{
 		objsType.push_back(it->first);
 	}
@@ -112,69 +113,69 @@ void HLTHiggsSubAnalysis::bookobjects( const edm::ParameterSet & anpset )
 {
 	if( anpset.exists("recMuonLabel") )
 	{
-		_recLabels[MUON] = pset.getParameter<vstring>("recMuonLabel");
+		_recLabels[MUON] = anpset.getParameter<std::string>("recMuonLabel");
 	}
 	if( anpset.exists("recElecLabel") )
 	{
-		_recLabels[ELEC] = pset.getParameter<vstring>("recElecLabel");
+		_recLabels[ELEC] = anpset.getParameter<std::string>("recElecLabel");
 	}
 	if( anpset.exists("recPhotonLabel") )
 	{
-		_recLabel[PHOTHON] = pset.getParameter<vstring>("recPhotonLabel");
+		_recLabels[PHOTON] = anpset.getParameter<std::string>("recPhotonLabel");
 	}
 	if( anpset.exists("recMETLabel") )
 	{
-		_recLabel[MET] = pset.getParameter<vstring>("recMETLabel");
+		_recLabels[MET] = anpset.getParameter<std::string>("recMETLabel");
 	}
 	if( anpset.exists("recPFMETLabel") )
 	{
-		_recLabels[PFMET] = pset.getParameter<vstring>("recPFMETLabel");
+		_recLabels[PFMET] = anpset.getParameter<std::string>("recPFMETLabel");
 	}
 	if( anpset.exists("recPFTauLabel") )
 	{
-		_recLabels[PFTAU] = pset.getParameter<vstring>("recPFTauLabel");
+		_recLabels[PFTAU] = anpset.getParameter<std::string>("recPFTauLabel");
 	}
 	if( anpset.exists("recPFJetLabel") )
 	{
-		_recLabels[PFJET] = pset.getParameter<vstring>("recPFJetLabel");
+		_recLabels[PFJET] = anpset.getParameter<std::string>("recPFJetLabel");
 	}
 	if( anpset.exists("recMHTLabel") )
 	{
-		_recLabels[MHT] = pset.getParameter<vstring>("recMHTLabel");
+		_recLabels[MHT] = anpset.getParameter<std::string>("recMHTLabel");
 	}
 
 	if( _recLabels.size() < 1 )
 	{
-		LogError("HLTHiggsVal") << "In HLTHiggsSubAnalysis::bookobjects, " 
+		edm::LogError("HLTHiggsVal") << "In HLTHiggsSubAnalysis::bookobjects, " 
 		<< "Not included any object (recMuonLabel, recElecLabel, ...)  "
 	       	<< "in the analysis " << _analysisname;
 		return;
 	}
 }
 
-void HLTHiggsSubAnalysis::initobjects(EVTColContainer * col)
+void HLTHiggsSubAnalysis::initobjects(const edm::Event & iEvent, EVTColContainer * col)
 {
 	if( col != 0 && col->isAllInit() )
 	{
 		// Already init, not needed to do nothing
 		return;
 	}
-	if( ! col.isCommonInit() )
+	if( ! col->isCommonInit() )
 	{
 		edm::Handle<trigger::TriggerEventWithRefs> rawTEH;
 		iEvent.getByLabel("hltTriggerSummaryRAW",rawTEH);
-		if(rawTriggerEvent.failedToGet())
+		if(rawTEH.failedToGet())
 		{
-			LogError("HLTMuonVal") << "No trigger summary found"; 
+			edm::LogError("HLTMuonVal") << "No trigger summary found"; 
 			return;
 		}
-		(*col).rawTriggerEvent = rawTEH.getproduct();
+		(*col).rawTriggerEvent = rawTEH.product();
 
 		edm::Handle<reco::GenParticleCollection> genPart;
 		iEvent.getByLabel(_genParticleLabel,genPart);
 		if( genPart.isValid() )
 		{
-			(*col).genParticles = genPart.product()
+			(*col).genParticles = genPart.product();
 		}
 	}
 		
@@ -186,19 +187,20 @@ void HLTHiggsSubAnalysis::initobjects(EVTColContainer * col)
 		{
 			edm::Handle<reco::MuonCollection> theHandle;
 			iEvent.getByLabel(it->second, theHandle);
+			col->set(theHandle.product());
 		}
 		else if( it->first == ELEC )
 		{
 			edm::Handle<reco::GsfElectronCollection> theHandle;
 			iEvent.getByLabel(it->second, theHandle);
+			col->set(theHandle.product());
 		}
 		else
 		{
-			LogError("HLTHiggsVal") << "HLTHiggsSubAnalysis::initobjects " 
+			edm::LogError("HLTHiggsVal") << "HLTHiggsSubAnalysis::initobjects " 
 				<< " NOT IMPLEMENTED (yet) ERROR: '" << it->second << "'";
 			//return; ??
 		}
 
-		col->set(theHandle.product());
 	}
 }

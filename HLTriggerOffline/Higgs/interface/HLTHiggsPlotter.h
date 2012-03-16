@@ -6,8 +6,8 @@
  *  Documentation available on the CMS TWiki:
  *  https://twiki.cern.ch/twiki/bin/view/CMS/HiggsWGHLTValidate
  *
- *  $Date: 2012/03/12 16:10:32 $
- *  $Revision: 1.0 $
+ *  $Date: 2012/03/15 17:53:00 $
+ *  $Revision: 1.1 $
  *  \author  J. Duarte Campderros (based and adapted on J. Klukas,
  *           M. Vander Donckt and J. Alcaraz code from the 
  *           HLTriggerOffline/Muon package)
@@ -25,7 +25,6 @@
 #include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 
-#include "HLTrigger/HLTcore/interface/HLTConfigProvider.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "DQMServices/Core/interface/MonitorElement.h"
@@ -36,23 +35,26 @@
 #include <map>
 #include <iostream>
 
+const unsigned int kNull = (unsigned int) -1;
+
+class EVTColContainer;
 
 class HLTHiggsPlotter 
 {
        	public:
 	      	HLTHiggsPlotter(const edm::ParameterSet & pset, const std::string & hltPath,
-	       			const std::vector<std::string> & moduleLabels,
-			       	const std::vector<std::string> & stepLabels);
+				const std::vector<unsigned int> & objectsType,
+			       	DQMStore * dbe);
 	      	void beginJob();
 	      	void beginRun(const edm::Run &, const edm::EventSetup &);
-	      	void analyze(const edm::Event &, const edm::EventSetup &);
+	      	void analyze(const edm::Event &, const edm::EventSetup &, EVTColContainer * cols);
 		
        	private:
 	      	
 	      	struct MatchStruct 
 		{
-		    	const reco::Candidate            * candBase;
-		    	std::vector<const reco::RecoChargedCandidate *> candHlt;
+		    	const reco::Candidate * candBase;
+			std::vector<const reco::RecoChargedCandidate *> candHlt;
 		    	MatchStruct() 
 			{
 			  	candBase   = 0;
@@ -83,15 +85,19 @@ class HLTHiggsPlotter
 	     			const std::string &, const std::string &,
 	     			const std::vector<MatchStruct>, 
 	     			edm::Handle<trigger::TriggerEventWithRefs>);
-	      	void findMatches(std::vector<MatchStruct> &, 
-			  	std::vector< std::vector< const reco::RecoChargedCandidate *> >
-			  	);
-	      	void bookHist(std::string, std::string, std::string, std::string);
-	      	void fillHist(std::string, std::string, std::string, std::string);
-
-		std::string _subanalysisname;
+	      	void findMatches(std::vector<MatchStruct> & matches, 
+			  	const std::vector<const reco::RecoChargedCandidate *> & candsHLT,
+				const unsigned int & obj);
+	      	void bookHist(const std::string & source, const std::string & objType, const std::string & variable);
+	      	void fillHist(const std::string & source, const std::string & objType,
+				const std::string & var, const float & value);
 		
-	      	std::string  _hltPath;
+		const std::string getTypeString(const unsigned int & objtype) const;
+
+	      	std::string _hltPath;
+		std::string _hltProcessName;
+
+		std::vector<unsigned int> _objectsType;
 		
 	      	std::vector<double> _parametersEta;
 	      	std::vector<double> _parametersPhi;
@@ -115,8 +121,6 @@ class HLTHiggsPlotter
 
 		//! Map to reference the object type with its selector
 		std::map<unsigned int, void *> _objtypeSelRef;
-		
-	      	HLTConfigProvider _hltConfig;
 		
 	      	DQMStore* _dbe;
 	      	std::map<std::string, MonitorElement *> _elements;		
