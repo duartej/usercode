@@ -6,7 +6,7 @@
  *  Documentation available on the CMS TWiki:
  *  https://twiki.cern.ch/twiki/bin/view/CMS/HiggsWGHLTValidate
  *
- *  $Date: 2012/03/15 17:53:00 $
+ *  $Date: 2012/03/16 01:55:32 $
  *  $Revision: 1.1 $
  *  \author  J. Duarte Campderros
  *
@@ -64,7 +64,7 @@ struct EVTColContainer
 	}
 	bool isCommonInit()
 	{
-		return (rawTriggerEvent == 0);
+		return (rawTriggerEvent != 0);
 	}
 	//! 
 	void reset()

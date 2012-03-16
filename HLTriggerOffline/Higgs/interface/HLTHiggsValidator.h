@@ -6,8 +6,8 @@
  *  Documentation available on the CMS TWiki:
  *  https://twiki.cern.ch/twiki/bin/view/CMS/HiggsWGHLTValidate
  *
- *  $Date: 2012/03/15 17:53:01 $
- *  $Revision: 1.1 $
+ *  $Date: 2012/03/16 01:55:32 $
+ *  $Revision: 1.2 $
  *  \author  J. Duarte Campderros (based and adapted on J. Klukas,
  *           M. Vander Donckt and J. Alcaraz code from the 
  *           HLTriggerOffline/Muon package)
@@ -20,8 +20,6 @@
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-
-#include "HLTrigger/HLTcore/interface/HLTConfigProvider.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
 
@@ -50,15 +48,13 @@ class HLTHiggsValidator : public edm::EDAnalyzer
 
 		//! Input from configuration file
 		edm::ParameterSet _pset;
-		std::string _hltProcessName;
 		std::vector<std::string> _analysisnames;
 		
 		std::vector<HLTHiggsSubAnalysis> _analyzers;
-		HLTConfigProvider _hltConfig;
-
+				
 		//! The container with all the collections needed
 		EVTColContainer * _collections;
-
+		
 		// Access to the DQM
 		DQMStore * _dbe;      	
 };

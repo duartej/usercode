@@ -1,7 +1,7 @@
 
 /** \file HLTHiggsSubAnalysis.cc
- *  $Date: 2012/03/15 17:53:01 $
- *  $Revision: 1.1 $
+ *  $Date: 2012/03/16 01:55:33 $
+ *  $Revision: 1.2 $
  */
 
 
@@ -16,12 +16,18 @@
 #include "HLTriggerOffline/Higgs/interface/HLTHiggsSubAnalysis.h"
 #include "HLTriggerOffline/Higgs/src/EVTColContainer.cc"
 
+#include "TPRegexp.h"
+
+#include "TString.h"
+
 #include<set>
+
 
 HLTHiggsSubAnalysis::HLTHiggsSubAnalysis(const edm::ParameterSet & pset,
 		const std::string & analysisname) :
-	_analysisname(analysisname),
 	_pset(pset),
+	_analysisname(analysisname),
+	_hltProcessName(pset.getParameter<std::string>("hltProcessName")),
 	_genParticleLabel(pset.getParameter<std::string>("genParticleLabel")),
 	_dbe(0)
 {
@@ -32,6 +38,7 @@ HLTHiggsSubAnalysis::HLTHiggsSubAnalysis(const edm::ParameterSet & pset,
 	this->bookobjects( anpset );
 
 	_hltPathsToCheck = anpset.getParameter<std::vector<std::string> >("hltPathsToCheck");
+
 	_dbe = edm::Service<DQMStore>().operator->();
       	_dbe->setVerbose(0);
 }
@@ -52,10 +59,33 @@ void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup 
 	std::string baseDir = "HLT/Higgs/"+_analysisname+"/";
       	_dbe->setCurrentFolder(baseDir);
 
+	// Initialize the confighlt
+	bool changedConfig;
+	if(!_hltConfig.init(iRun,iSetup,_hltProcessName,changedConfig))
+	{
+		edm::LogError("HLTHiggsSubAnalysis") 
+			<< "Initializtion of HLTConfigProvider failed!!";
+	}
+
+
+	// Parse the paths and initi
+	_hltPaths.clear();
+	for(size_t i = 0; i < _hltPathsToCheck.size(); ++i)
+	{
+		TPRegexp pattern(_hltPathsToCheck[i]);
+		for(size_t j = 0 ; j < _hltConfig.triggerNames().size(); ++j)
+		{
+			std::string thetriggername = _hltConfig.triggerNames()[j];
+			if(TString(thetriggername).Contains(pattern))
+			{
+				_hltPaths.insert(thetriggername);
+			}
+		}
+	}
       	// Initialize the plotters (analysers for each trigger path)
 	_analyzers.clear();
-  	for(std::vector<std::string>::iterator iPath = _hltPathsToCheck.begin(); 
-			iPath != _hltPathsToCheck.end(); iPath++) 
+  	for(std::set<std::string>::iterator iPath = _hltPaths.begin(); 
+			iPath != _hltPaths.end(); iPath++) 
 	{
 		std::string path = * iPath;
 		std::string shortpath = path;
@@ -64,7 +94,7 @@ void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup 
 			shortpath = path.substr(0, path.rfind("_v"));
 		}
       				
-		HLTHiggsPlotter analyzer(_pset, shortpath, this->getObjectsType(), _dbe);
+		HLTHiggsPlotter analyzer(_pset, shortpath, this->getObjectsType(shortpath), _dbe);
 		_analyzers.push_back(analyzer);
     	}
       	// Call the beginRun (which books all the histograms)
@@ -82,7 +112,7 @@ void HLTHiggsSubAnalysis::analyze(const edm::Event & iEvent, const edm::EventSet
 {
       	static int eventNumber = 0;
       	eventNumber++;
-      	LogTrace("HLTHiggsVal") << "In HLTHiggsSubAnalysis::analyze,  " 
+      	LogTrace("HLTHiggsValidation") << "In HLTHiggsSubAnalysis::analyze,  " 
 		<< "Event: " << eventNumber;
 
 	// Initialize the collection (the ones which hasn't been initiliazed yet)
@@ -95,8 +125,24 @@ void HLTHiggsSubAnalysis::analyze(const edm::Event & iEvent, const edm::EventSet
 	}  
 }
 
+const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType(const std::string & hltPath) const
+{
+	std::vector<unsigned int> objsType;
+	for(std::map<unsigned int,std::string>::const_iterator it = _recLabels.begin();
+			it != _recLabels.end(); ++it)
+	{
+		std::string objTypeStr = this->getTypeString( it->first );
+		// Check if it is needed this object for this trigger
+		if( ! TString(hltPath).Contains(objTypeStr) )
+		{
+			continue;
+		}
+		objsType.push_back(it->first);
+	}
+	return objsType;
+}
 
-const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType() const
+const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType() const // TO BE DEPRECATED
 {
 	std::vector<unsigned int> objsType;
 	for(std::map<unsigned int,std::string>::const_iterator it = _recLabels.begin();
@@ -169,13 +215,13 @@ void HLTHiggsSubAnalysis::initobjects(const edm::Event & iEvent, EVTColContainer
 			edm::LogError("HLTMuonVal") << "No trigger summary found"; 
 			return;
 		}
-		(*col).rawTriggerEvent = rawTEH.product();
+		col->rawTriggerEvent = rawTEH.product();
 
 		edm::Handle<reco::GenParticleCollection> genPart;
 		iEvent.getByLabel(_genParticleLabel,genPart);
 		if( genPart.isValid() )
 		{
-			(*col).genParticles = genPart.product();
+			col->genParticles = genPart.product();
 		}
 	}
 		
@@ -201,6 +247,36 @@ void HLTHiggsSubAnalysis::initobjects(const edm::Event & iEvent, EVTColContainer
 				<< " NOT IMPLEMENTED (yet) ERROR: '" << it->second << "'";
 			//return; ??
 		}
-
 	}
+}
+
+const std::string HLTHiggsSubAnalysis::getTypeString(const unsigned int & objtype) const
+{
+	std::string objTypestr("Mu");
+
+	if( objtype == HLTHiggsSubAnalysis::ELEC )
+	{
+		objTypestr = "Ele";
+	}
+	else if( objtype == HLTHiggsSubAnalysis::PHOTON )
+	{
+		objTypestr = "Photon";
+	}
+	else if( objtype == HLTHiggsSubAnalysis::JET )
+	{
+		objTypestr = "Jet";
+	}
+	else if( objtype == HLTHiggsSubAnalysis::PFJET )
+	{
+		objTypestr = "PFJet";
+	}
+	else if( objtype == HLTHiggsSubAnalysis::MET )
+	{
+		objTypestr = "ET";
+	}
+	/*else
+	{ ERROR FIXME
+	}*/
+
+	return objTypestr;
 }

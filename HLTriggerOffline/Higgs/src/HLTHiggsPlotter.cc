@@ -1,7 +1,7 @@
 
 /** \file HLTHiggsPlotter.cc
- *  $Date: 2012/03/15 17:53:01 $
- *  $Revision: 1.1 $
+ *  $Date: 2012/03/16 01:55:33 $
+ *  $Revision: 1.2 $
  */
 
 
@@ -29,7 +29,6 @@
 #include<set>
 #include<cctype>
 
-
 HLTHiggsPlotter::HLTHiggsPlotter(const edm::ParameterSet & pset,
 		const std::string & hltPath,
 		const std::vector<unsigned int> & objectsType,
@@ -41,7 +40,14 @@ HLTHiggsPlotter::HLTHiggsPlotter(const edm::ParameterSet & pset,
   	_parametersPhi(pset.getParameter<std::vector<double> >("parametersPhi")),
   	_parametersTurnOn(pset.getParameter<std::vector<double> >("parametersTurnOn")),
 	_genSelector(0),
-	_recSelector(0),
+	//_recSelector(0),
+	_recMuonSelector(0),
+	_recElecSelector(0),
+	/*_recMETSelector(0),
+	_recPFMETSelector(0),
+	_recJetSelector(0),
+	_recPFJetSelector(0),
+	_recPhotonSelector(0),*/
 	_dbe(dbe)
 {
 	for(std::vector<unsigned int>::iterator it = _objectsType.begin();
@@ -73,6 +79,13 @@ void HLTHiggsPlotter::beginRun(const edm::Run & iRun, const edm::EventSetup & iS
 	for(std::vector<unsigned int>::iterator it = _objectsType.begin(); 
 			it != _objectsType.end(); ++it)
 	{
+		// Check if it is needed this object for this trigger
+		/*std::string objTypeStr = this->getTypeString( *it );
+		if( ! TString(_hltPath).Contains(objTypeStr) )
+		{
+			continue;
+		}*/
+
 		if( *it == HLTHiggsSubAnalysis::ELEC )
 		{
 			_cutMaxEta[*it] = 2.5; 
@@ -129,16 +142,15 @@ void HLTHiggsPlotter::analyze(const edm::Event & iEvent, const edm::EventSetup &
 {
       	static int eventNumber = 0;
       	eventNumber++;
-	LogTrace("HLTMuonVal") << "In HLTHiggsPlotter::analyze,  " 
+	LogTrace("HLTMuonValidation") << "In HLTHiggsPlotter::analyze,  " 
 		<< "Event: " << eventNumber;
 
-	
 	for(std::vector<unsigned int>::iterator it = _objectsType.begin(); 
 			it != _objectsType.end(); ++it)
 	{
 		std::vector<std::string> sources;
 		bool hasGen = false;
- 	      	if( (*cols).genParticles != 0 )
+ 	      	if( cols->genParticles != 0 )
  		{
  			sources.push_back("gen");
  			hasGen = true;
@@ -155,9 +167,12 @@ void HLTHiggsPlotter::analyze(const edm::Event & iEvent, const edm::EventSetup &
  		     	// If this is the first event, initialize selectors --> Por que no ponerlo en el beginRun
 			if(!_genSelector) 
  			{
- 				_genSelector = new StringCutObjectSelector<reco::GenParticle>(_genCut[*it]);
- 			}
-			_recSelector = new StringCutObjectSelector<reco::Candidate>(_recCut[*it]);
+ 				_genSelector      = new StringCutObjectSelector<reco::GenParticle>(_genCut[*it]);
+			}
+			if(!_recObjSelRef[*it])
+			{
+				_recObjSelRef[*it]= this->InitSelector(*it);
+			}
  		    	// Make each good gen/rec object into the base cand for a MatchStruct
  			std::vector<MatchStruct> matches;
  		    	if(source == "gen" && hasGen)
@@ -173,9 +188,11 @@ void HLTHiggsPlotter::analyze(const edm::Event & iEvent, const edm::EventSetup &
  			if(source == "rec" && hasReco)
  			{
 				const std::vector<reco::Candidate> * recCol = cols->get(*it);
+std::cout << " Event: " << eventNumber << " --- Cuantos reco tenemos? " << recCol->size() << std::endl;
+				StringCutObjectSelector<reco::Candidate> * recSelector = static_cast<StringCutObjectSelector<reco::Candidate>* >(_recObjSelRef[*it]);
  			  	for(size_t i = 0; i < recCol->size(); i++)
  				{
- 					if(_recSelector->operator()(recCol->at(i)))
+ 					if(recSelector->operator()(recCol->at(i)))
  					{
  				      		matches.push_back(MatchStruct(&recCol->at(i)));
  					}
@@ -360,6 +377,7 @@ void HLTHiggsPlotter::bookHist(const std::string & source,
       	h->Sumw2();
       	_elements[name] = _dbe->book1D(name, h);
       	delete h;
+std::cout << " Booked: " << name << std::endl;
 }
 
 void HLTHiggsPlotter::fillHist(const std::string & source, const std::string & objType, 
@@ -370,45 +388,56 @@ void HLTHiggsPlotter::fillHist(const std::string & source, const std::string & o
 	std::string name = source + objType + "Pass" + type + "_" + _hltPath;
 
 	_elements[name]->Fill(value);
+std::cout << " --- Filled " << name << " (" << _hltPath << ") ->" << value << std::endl;
 }
 
 
-/*void HTLHiggsPlotter::initSelector(const unsigned int & objtype)
+void * HLTHiggsPlotter::InitSelector(const unsigned int & objtype)
 {	
-	if( objtype == HLTHiggsSubAnalyzer::MUON )
+	void * selector = 0;
+
+	if( objtype == HLTHiggsSubAnalysis::MUON )
 	{
 		_recMuonSelector = new StringCutObjectSelector<reco::Muon>(_recCut[objtype]);
+		selector = _recMuonSelector;
 	}
-	else if( objtype == HLTHiggsSubAnalyzer::ELEC )
+	else if( objtype == HLTHiggsSubAnalysis::ELEC )
 	{
 		_recElecSelector = new StringCutObjectSelector<reco::GsfElectron>(_recCut[objtype]);
+		selector = _recMuonSelector;
 	}
-	else if( objtype == HLTHiggsSubAnalyzer::Photon )
+/*	else if( objtype == HLTHiggsSubAnalysis::Photon )
 	{
 		_recPhotonSelector = new StringCutObjectSelector<reco::Photon>(_recCut[objtype]);
+		selector = _recMuonSelector;
 	}
-	else if( objtype == HLTHiggsSubAnalyzer::JET )
+	else if( objtype == HLTHiggsSubAnalysis::JET )
 	{
 		_recJetSelector = new StringCutObjectSelector<reco::Jet>(_recCut[objtype]);
+		selector = _recMuonSelector;
 	}
-	else if( objtype == HLTHiggsSubAnalyzer::PFJET )
+	else if( objtype == HLTHiggsSubAnalysis::PFJET )
 	{
 		_recPFJetSelector = new StringCutObjectSelector<reco::pfJet>(_recCut[objtype]);
+		selector = _recMuonSelector;
 	}
-	else if( objtype == HLTHiggsSubAnalyzer::MET )
+	else if( objtype == HLTHiggsSubAnalysis::MET )
 	{
 		_recMETSelector = new StringCutObjectSelector<reco::caloMET>(_recCut[objtype]);
+		selector = _recMuonSelector;
 	}
-	else if( objtype == HLTHiggsSubAnalyzer::PFMET )
+	else if( objtype == HLTHiggsSubAnalysis::PFMET )
 	{
 		_recPFMETSelector = new StringCutObjectSelector<reco::pfMET>(_recCut[objtype]);
-	}
-	else
+		selector = _recMuonSelector;
+	}*/
+/*	else
 	{
 FIXME: ERROR NO IMPLEMENTADO
-	}
-}*/
+	}*/
 
+	return selector;
+}
 
 
 //! 

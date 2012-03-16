@@ -6,8 +6,8 @@
  *  Documentation available on the CMS TWiki:
  *  https://twiki.cern.ch/twiki/bin/view/CMS/HiggsWGHLTValidate
  *
- *  $Date: 2012/03/15 17:53:00 $
- *  $Revision: 1.1 $
+ *  $Date: 2012/03/16 01:55:32 $
+ *  $Revision: 1.2 $
  *  \author  J. Duarte Campderros (based and adapted on J. Klukas,
  *           M. Vander Donckt and J. Alcaraz code from the 
  *           HLTriggerOffline/Muon package)
@@ -33,6 +33,8 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
+
+#include "HLTrigger/HLTcore/interface/HLTConfigProvider.h"
 
 #include "HLTriggerOffline/Higgs/interface/HLTHiggsPlotter.h"
 
@@ -69,18 +71,25 @@ class HLTHiggsSubAnalysis
 	      	void analyze(const edm::Event & iEvent, const edm::EventSetup & iEventSetup, EVTColContainer * cols);
 
 		//! Extract what objects need this analysis
-		const std::vector<unsigned int> getObjectsType() const;
+		const std::vector<unsigned int> getObjectsType() const; // TO BE DEPRECATED
+		const std::vector<unsigned int> getObjectsType(const std::string & hltpath) const;
 
 		
        	private:
 		void bookobjects(const edm::ParameterSet & anpset);
 		void initobjects(const edm::Event & iEvent, EVTColContainer * col);
+		const std::string getTypeString(const unsigned int & objtype) const;
+
+		edm::ParameterSet _pset;
 
 		std::string _analysisname;
 
-		edm::ParameterSet _pset;
+		std::string _hltProcessName;
 		
+		//! the hlt paths with regular expressions
 		std::vector<std::string> _hltPathsToCheck;
+		//! the hlt paths found in the hltConfig
+		std::set<std::string> _hltPaths;
 
 		// The name of the object collections to be used in this
 		// analysis. 
@@ -89,6 +98,8 @@ class HLTHiggsSubAnalysis
 
 		// The plotters: managers of each hlt path where the plots are done
 		std::vector<HLTHiggsPlotter> _analyzers;
+		
+		HLTConfigProvider _hltConfig;
 		
 	      	DQMStore* _dbe;
 };

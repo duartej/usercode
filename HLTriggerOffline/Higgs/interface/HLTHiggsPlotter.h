@@ -6,8 +6,8 @@
  *  Documentation available on the CMS TWiki:
  *  https://twiki.cern.ch/twiki/bin/view/CMS/HiggsWGHLTValidate
  *
- *  $Date: 2012/03/15 17:53:00 $
- *  $Revision: 1.1 $
+ *  $Date: 2012/03/16 01:55:32 $
+ *  $Revision: 1.2 $
  *  \author  J. Duarte Campderros (based and adapted on J. Klukas,
  *           M. Vander Donckt and J. Alcaraz code from the 
  *           HLTriggerOffline/Muon package)
@@ -24,6 +24,8 @@
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 #include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/MuonReco/interface/Muon.h"
+#include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
 
 
 #include "DQMServices/Core/interface/DQMStore.h"
@@ -92,6 +94,7 @@ class HLTHiggsPlotter
 	      	void fillHist(const std::string & source, const std::string & objType,
 				const std::string & var, const float & value);
 		
+		void * InitSelector(const unsigned int & objtype);
 		const std::string getTypeString(const unsigned int & objtype) const;
 
 	      	std::string _hltPath;
@@ -111,16 +114,17 @@ class HLTHiggsPlotter
 		std::map<unsigned int,std::string> _recCut;
 		
 	      	StringCutObjectSelector<reco::GenParticle> * _genSelector;
-	      	StringCutObjectSelector<reco::Candidate>   * _recSelector;
-	      	/*StringCutObjectSelector<reco::Muon>        * _recMuonSelector;
+	      	//StringCutObjectSelector<reco::Candidate>   * _recSelector;
+	      	StringCutObjectSelector<reco::Muon>        * _recMuonSelector;
 	      	StringCutObjectSelector<reco::GsfElectron> * _recElecSelector;
-	      	StringCutObjectSelector<reco::caloMET>     * _recMETSelector;
-	      	StringCutObjectSelector<reco::pfMET>       * _recPFMETSelector;
+	      	//StringCutObjectSelector<reco::caloMET>    * _recMETSelector;
+/*	      	StringCutObjectSelector<reco::pfMET>        * _recPFMETSelector;
+	      	StringCutObjectSelector<reco::Jet>         * _recJetSelector;
+	      	StringCutObjectSelector<reco::pfJet>       * _recPFJetSelector;
 	      	StringCutObjectSelector<reco::Photon>      * _recPhotonSelector;*/
 	      	
-
 		//! Map to reference the object type with its selector
-		std::map<unsigned int, void *> _objtypeSelRef;
+		std::map<unsigned int, void *> _recObjSelRef;
 		
 	      	DQMStore* _dbe;
 	      	std::map<std::string, MonitorElement *> _elements;		

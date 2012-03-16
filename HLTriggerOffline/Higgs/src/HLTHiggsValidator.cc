@@ -8,7 +8,7 @@
 // Jordi Duarte Campderros (based on the Jason Slaunwhite 
 // and Jeff Klukas coded from the HLTriggerOffline/Muon package
 //
-// $Id: HLTHiggsValidator.cc,v 1.1 2012/03/15 17:53:01 duarte Exp $
+// $Id: HLTHiggsValidator.cc,v 1.2 2012/03/16 01:55:33 duarte Exp $
 //
 //
 
@@ -24,7 +24,6 @@
 // Constructor
 HLTHiggsValidator::HLTHiggsValidator(const edm::ParameterSet& pset) :
       	_pset(pset),
-	_hltProcessName(pset.getParameter<std::string>("hltProcessName")),
 	_analysisnames(pset.getParameter<std::vector<std::string> >("analysis")),
 	_collections(0),
 	_dbe(0)
@@ -44,16 +43,6 @@ HLTHiggsValidator::~HLTHiggsValidator()
 
 void HLTHiggsValidator::beginRun(const edm::Run & iRun, const edm::EventSetup & iSetup) 
 {
-      	// Initialize hltConfig
-      	bool changedConfig;
-	if(!_hltConfig.init(iRun, iSetup, _hltProcessName, changedConfig)) 
-	{
-		edm::LogError("HLTHiggsValidator") 
-			<< "Initialization of HLTConfigProvider failed!!"; 
-	    	return;
-      	}
-	
-       
 	for(size_t i = 0; i < _analysisnames.size() ; ++i)
 	{
 		HLTHiggsSubAnalysis analyzer(_pset, _analysisnames.at(i));
