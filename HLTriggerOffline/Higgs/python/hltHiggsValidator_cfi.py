@@ -41,6 +41,13 @@ hltHiggsValidator = cms.EDAnalyzer("HLTHiggsValidator",
     Ele_cutMotherId = cms.uint32(23), # CUIDDADO
     Ele_cutDr       = cms.vdouble(0.4,0.4,0.015),
 
+    # --- Photons
+    Photon_genCut     = cms.string("abs(pdgId) == 22 && status == 1"),
+    Photon_recCut     = cms.string(""),
+    Photon_cutMinPt   = cms.double(10),
+    Photon_cutMaxEta  = cms.double(2.4),
+    Photon_cutMotherId= cms.uint32(23), # CUIDDADO
+    Photon_cutDr      = cms.vdouble(0.4,0.4,0.015),
 
     # The specific parameters per analysis
     HWW = cms.PSet( 
@@ -49,7 +56,8 @@ hltHiggsValidator = cms.EDAnalyzer("HLTHiggsValidator",
 		    "HLT_Dimuon0_Jpsi_v10",
 		    "HLT_Dimuon13_Jpsi_Barrel_v5",
 		    ),
-	    recMuonLabel = cms.string("muons"),
-	    recElecLabel = cms.string("gsfElectrons"),
+	    recMuonLabel  = cms.string("muons"),
+	    recElecLabel  = cms.string("gsfElectrons"),
+	    recPhotonLabel= cms.string("photons"),
 	    ),
 )

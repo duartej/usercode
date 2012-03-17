@@ -15,9 +15,10 @@ process.load("DQMServices.Components.MEtoEDMConverter_cfi")
 hltProcessName = "HLT"
 process.hltHiggsValidator.hltProcessName = hltProcessName
 process.hltHiggsValidator.HWW.hltPathsToCheck = cms.vstring(
-		"HLT_Mu30_etqa2p1",
-		"HLT_IsoMu24_eta2p1",
-		"HLT_Ele27_WP80",
+		"HLT_Photon26",
+		#		"HLT_Mu30_eta2p1_v",
+		#		"HLT_IsoMu24_eta2p1_v",
+		#"HLT_Ele27_WP80_v",
 		)
 
 process.load("Configuration.StandardSequences.Reconstruction_cff")

@@ -21,11 +21,14 @@
 #include "DataFormats/HLTReco/interface/TriggerEventWithRefs.h"
 #include "DataFormats/RecoCandidate/interface/RecoChargedCandidate.h"
 #include "DataFormats/RecoCandidate/interface/RecoChargedCandidateFwd.h"
+#include "DataFormats/RecoCandidate/interface/RecoEcalCandidate.h"
+#include "DataFormats/RecoCandidate/interface/RecoEcalCandidateFwd.h"
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 #include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
+#include "DataFormats/EgammaCandidates/interface/Photon.h"
 
 
 #include "DQMServices/Core/interface/DQMStore.h"
@@ -45,8 +48,10 @@ class HLTHiggsPlotter
 {
        	public:
 	      	HLTHiggsPlotter(const edm::ParameterSet & pset, const std::string & hltPath,
+				const std::string & lastFilter,
 				const std::vector<unsigned int> & objectsType,
 			       	DQMStore * dbe);
+		~HLTHiggsPlotter();
 	      	void beginJob();
 	      	void beginRun(const edm::Run &, const edm::EventSetup &);
 	      	void analyze(const edm::Event &, const edm::EventSetup &, EVTColContainer * cols);
@@ -56,7 +61,8 @@ class HLTHiggsPlotter
 	      	struct MatchStruct 
 		{
 		    	const reco::Candidate * candBase;
-			std::vector<const reco::RecoChargedCandidate *> candHlt;
+			//std::vector<const reco::RecoChargedCandidate *> candHlt;
+			std::vector<const reco::RecoEcalCandidate *> candHlt;
 		    	MatchStruct() 
 			{
 			  	candBase   = 0;
@@ -87,8 +93,11 @@ class HLTHiggsPlotter
 	     			const std::string &, const std::string &,
 	     			const std::vector<MatchStruct>, 
 	     			edm::Handle<trigger::TriggerEventWithRefs>);
-	      	void findMatches(std::vector<MatchStruct> & matches, 
+	      	/*void findMatches(std::vector<MatchStruct> & matches, 
 			  	const std::vector<const reco::RecoChargedCandidate *> & candsHLT,
+				const unsigned int & obj);*/
+	      	void findMatches(std::vector<MatchStruct> & matches, 
+			  	const std::vector<const reco::RecoEcalCandidate *> & candsHLT,
 				const unsigned int & obj);
 	      	void bookHist(const std::string & source, const std::string & objType, const std::string & variable);
 	      	void fillHist(const std::string & source, const std::string & objType,
@@ -98,6 +107,7 @@ class HLTHiggsPlotter
 		const std::string getTypeString(const unsigned int & objtype) const;
 
 	      	std::string _hltPath;
+		std::string _lastFilter;
 		std::string _hltProcessName;
 
 		std::vector<unsigned int> _objectsType;
@@ -120,8 +130,8 @@ class HLTHiggsPlotter
 	      	//StringCutObjectSelector<reco::caloMET>    * _recMETSelector;
 /*	      	StringCutObjectSelector<reco::pfMET>        * _recPFMETSelector;
 	      	StringCutObjectSelector<reco::Jet>         * _recJetSelector;
-	      	StringCutObjectSelector<reco::pfJet>       * _recPFJetSelector;
-	      	StringCutObjectSelector<reco::Photon>      * _recPhotonSelector;*/
+	      	StringCutObjectSelector<reco::pfJet>       * _recPFJetSelector;*/
+	      	StringCutObjectSelector<reco::Photon>      * _recPhotonSelector;
 	      	
 		//! Map to reference the object type with its selector
 		std::map<unsigned int, void *> _recObjSelRef;

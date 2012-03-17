@@ -79,6 +79,7 @@ class HLTHiggsSubAnalysis
 		void bookobjects(const edm::ParameterSet & anpset);
 		void initobjects(const edm::Event & iEvent, EVTColContainer * col);
 		const std::string getTypeString(const unsigned int & objtype) const;
+		std::vector<std::string> moduleLabels(const std::string & path);
 
 		edm::ParameterSet _pset;
 

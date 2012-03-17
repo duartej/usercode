@@ -16,6 +16,9 @@
 #include "HLTriggerOffline/Higgs/interface/HLTHiggsSubAnalysis.h"
 #include "HLTriggerOffline/Higgs/src/EVTColContainer.cc"
 
+#include "DataFormats/Common/interface/TriggerResults.h"
+#include "FWCore/Common/interface/TriggerNames.h"
+
 #include "TPRegexp.h"
 
 #include "TString.h"
@@ -68,8 +71,9 @@ void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup 
 	}
 
 
-	// Parse the paths and initi
+	// Parse the paths and init
 	_hltPaths.clear();
+	std::map<std::string,std::string> pathLastFilter;
 	for(size_t i = 0; i < _hltPathsToCheck.size(); ++i)
 	{
 		TPRegexp pattern(_hltPathsToCheck[i]);
@@ -79,6 +83,8 @@ void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup 
 			if(TString(thetriggername).Contains(pattern))
 			{
 				_hltPaths.insert(thetriggername);
+				std::vector<std::string> mods = _hltConfig.moduleLabels(thetriggername);
+				pathLastFilter[thetriggername] = mods.at(mods.size()-2); // mods
 			}
 		}
 	}
@@ -94,7 +100,7 @@ void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup 
 			shortpath = path.substr(0, path.rfind("_v"));
 		}
       				
-		HLTHiggsPlotter analyzer(_pset, shortpath, this->getObjectsType(shortpath), _dbe);
+		HLTHiggsPlotter analyzer(_pset, shortpath, pathLastFilter[path],this->getObjectsType(shortpath), _dbe);
 		_analyzers.push_back(analyzer);
     	}
       	// Call the beginRun (which books all the histograms)
@@ -117,17 +123,29 @@ void HLTHiggsSubAnalysis::analyze(const edm::Event & iEvent, const edm::EventSet
 
 	// Initialize the collection (the ones which hasn't been initiliazed yet)
  	this->initobjects(iEvent,collections);
+
+	//Opcion no match con el objecto de trigger solo comprobar si el trigger paso el corte o no
+	//edm::Handle<edm::TriggerResults> trigResults; ---> Collections
+	/*edm::InputTag trigResultsTag("TriggerResults","",collections->rawTriggerEvent->usedProcessName());
+        iEvent.getByLabel(trigResultsTag,trigResults);
+	const edm::TriggerNames trigNames = iEvent.triggerNames(*trigResults);
+	for(std::set<std::string>::iterator iPath = _hltPaths.begin(); 
+	iPath != _hltPaths.end(); iPath++) 
+	{
+		trigResults->accept(trigNames.triggerIndex(*iPath));
+	}*/
 	
 	for(std::vector<HLTHiggsPlotter>::iterator it = _analyzers.begin();
 			it != _analyzers.end(); ++it)
 	{
 		it->analyze(iEvent,iSetup,collections);
-	}  
+	} 
 }
 
 const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType(const std::string & hltPath) const
 {
 	std::vector<unsigned int> objsType;
+	// The object to deal has to be entered via the config .py
 	for(std::map<unsigned int,std::string>::const_iterator it = _recLabels.begin();
 			it != _recLabels.end(); ++it)
 	{
@@ -137,17 +155,6 @@ const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType(const std::s
 		{
 			continue;
 		}
-		objsType.push_back(it->first);
-	}
-	return objsType;
-}
-
-const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType() const // TO BE DEPRECATED
-{
-	std::vector<unsigned int> objsType;
-	for(std::map<unsigned int,std::string>::const_iterator it = _recLabels.begin();
-			it != _recLabels.end(); ++it)
-	{
 		objsType.push_back(it->first);
 	}
 	return objsType;
@@ -241,6 +248,12 @@ void HLTHiggsSubAnalysis::initobjects(const edm::Event & iEvent, EVTColContainer
 			iEvent.getByLabel(it->second, theHandle);
 			col->set(theHandle.product());
 		}
+		else if( it->first == PHOTON )
+		{
+			edm::Handle<reco::PhotonCollection> theHandle;
+			iEvent.getByLabel(it->second, theHandle);
+			col->set(theHandle.product());
+		}
 		else
 		{
 			edm::LogError("HLTHiggsVal") << "HLTHiggsSubAnalysis::initobjects " 
@@ -280,3 +293,26 @@ const std::string HLTHiggsSubAnalysis::getTypeString(const unsigned int & objtyp
 
 	return objTypestr;
 }
+
+
+std::vector<std::string> HLTHiggsSubAnalysis::moduleLabels(const std::string & path) 
+{
+	std::vector<std::string> modules = _hltConfig.moduleLabels(path);
+	std::vector<std::string>::iterator iter = modules.begin();
+	
+      	while(iter != modules.end())
+	{
+		if (iter->find("Filter") == std::string::npos)
+		{
+		  	iter = modules.erase(iter);
+		}    
+		else
+		{
+		  	++iter;
+		}
+	}
+	
+	return modules;
+}
+
+

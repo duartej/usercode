@@ -31,23 +31,24 @@
 
 HLTHiggsPlotter::HLTHiggsPlotter(const edm::ParameterSet & pset,
 		const std::string & hltPath,
+		const std::string & lastfilter,
 		const std::vector<unsigned int> & objectsType,
 	       	DQMStore * dbe) :
 	_hltPath(hltPath),
+	_lastFilter(lastfilter),
 	_hltProcessName(pset.getParameter<std::string>("hltProcessName")),
 	_objectsType(objectsType),
       	_parametersEta(pset.getParameter<std::vector<double> >("parametersEta")),
   	_parametersPhi(pset.getParameter<std::vector<double> >("parametersPhi")),
   	_parametersTurnOn(pset.getParameter<std::vector<double> >("parametersTurnOn")),
 	_genSelector(0),
-	//_recSelector(0),
 	_recMuonSelector(0),
 	_recElecSelector(0),
 	/*_recMETSelector(0),
 	_recPFMETSelector(0),
 	_recJetSelector(0),
-	_recPFJetSelector(0),
-	_recPhotonSelector(0),*/
+	_recPFJetSelector(0),*/
+	_recPhotonSelector(0),
 	_dbe(dbe)
 {
 	for(std::vector<unsigned int>::iterator it = _objectsType.begin();
@@ -62,6 +63,31 @@ HLTHiggsPlotter::HLTHiggsPlotter(const edm::ParameterSet & pset,
 		_genCut[*it] = pset.getParameter<std::string>( std::string(objStr+"_genCut").c_str() );
 		_recCut[*it] = pset.getParameter<std::string>( std::string(objStr+"_recCut").c_str() );
 	}
+}
+
+HLTHiggsPlotter::~HLTHiggsPlotter()
+{
+	if( _genSelector != 0)
+	{
+		delete _genSelector;
+		_genSelector =0;
+	}
+	if( _recMuonSelector != 0)
+	{
+		delete _recMuonSelector;
+		_recMuonSelector =0;
+	}
+	if( _recElecSelector != 0)
+	{
+		delete _recElecSelector;
+		_recElecSelector =0;
+	}
+	if( _recPhotonSelector != 0)
+	{
+		delete _recPhotonSelector;
+		_recPhotonSelector =0;
+	}
+
 }
 
 
@@ -188,7 +214,6 @@ void HLTHiggsPlotter::analyze(const edm::Event & iEvent, const edm::EventSetup &
  			if(source == "rec" && hasReco)
  			{
 				const std::vector<reco::Candidate> * recCol = cols->get(*it);
-std::cout << " Event: " << eventNumber << " --- Cuantos reco tenemos? " << recCol->size() << std::endl;
 				StringCutObjectSelector<reco::Candidate> * recSelector = static_cast<StringCutObjectSelector<reco::Candidate>* >(_recObjSelRef[*it]);
  			  	for(size_t i = 0; i < recCol->size(); i++)
  				{
@@ -203,22 +228,41 @@ std::cout << " Event: " << eventNumber << " --- Cuantos reco tenemos? " << recCo
  			std::sort(matches.begin(), matches.end(), matchesByDescendingPt());
  		    
  			const bool isDoublePath = (_hltPath.find("Double") != std::string::npos);
+			// OJO o tambien encuentro 2 veces el nombre del path o encuentro 2 objetos diferenctes
  		    	const int nObjectsToPassPath = (isDoublePath) ? 2 : 1;
- 			std::vector<reco::RecoChargedCandidateRef> refsHlt;
- 			std::vector<const reco::RecoChargedCandidate*> candsHlt;
- 	    
-			edm::InputTag tag = edm::InputTag("L3", "", _hltProcessName); // Ultimo????
+ 			std::vector<reco::RecoEcalCandidateRef> refsHlt;
+ 			std::vector<const reco::RecoEcalCandidate*> candsHlt;
+
+//		for(size_t iF = 0;  iF < _lastFilter.size(); ++iF)
+//		{ 	    
+			edm::InputTag tag = edm::InputTag(_lastFilter, "", _hltProcessName);
  		  	size_t iFilter = cols->rawTriggerEvent->filterIndex(tag);
+			//void * refsHltR = 0;
  		  	if(iFilter < cols->rawTriggerEvent->size()) 
  			{
-				// FIXME A funcion needed to decide which trigger type is trigger::TriggerWHATEVER
- 		      		cols->rawTriggerEvent->getObjects(iFilter, trigger::TriggerMuon,refsHlt);
+				//refsHltR = this->getTriggerObjects(cols,iFilter,*it);
+ 		      		cols->rawTriggerEvent->getObjects(iFilter, trigger::TriggerPhoton,refsHlt);
  		    	}
  		  	else
  			{
-				LogTrace("HLTMuonVal") << "No collection with label " << tag;
+				LogTrace("HLTHiggsVal") << "No collection with label " << tag;
  			}
- 		  
+std::cout << " ****** " << _hltPath  << " (Filter:"  << iFilter << "," << _lastFilter <<") HLT col. " << refsHlt.size() << std::endl;
+/*std::cout << "  ---- Sizes:  Muon:" << cols->rawTriggerEvent->photonSize()  << " Elec:"  << cols->rawTriggerEvent->electronSize() << std::endl;
+std::cout << "  ---- Vid  :  Muon:" << cols->rawTriggerEvent->photonIds().size()  << " Elec:"  << cols->rawTriggerEvent->electronIds().size() << std::endl;
+std::cout << "  ---- Refs :  Muon:" << cols->rawTriggerEvent->photonRefs().size()  << " Elec:"  << cols->rawTriggerEvent->electronRefs().size() << std::endl;
+std::cout << "             -> ";*/
+/*for(size_t kk = 0; kk < cols->rawTriggerEvent->muonRefs().size() ; ++kk)
+{
+	std::cout << " (i=" << kk << ")-> " << cols->rawTriggerEvent->muonRefs()[kk]->pt() ;
+}*/
+std::cout << std::endl;
+  		//}
+
+/*       	<< " Photon: " << cols->rawTriggerEvent->photonSize() << " Jets: " << cols->rawTriggerEvent->jetSize()
+       << " composite: " << cols->rawTriggerEvent->compositeSize() << " 	<< std::endl;*/
+			//std::vector<reco::RecoCandidateRef> * refsHltP = static_cast<std::vector<reco::CandidateRef> *>(refsHltR);
+			//std::vector<reco::RecoCandidd
  			for(size_t j = 0; j < refsHlt.size(); ++j)
  			{
  				if(refsHlt[j].isAvailable()) 
@@ -259,9 +303,6 @@ std::cout << " Event: " << eventNumber << " --- Cuantos reco tenemos? " << recCo
  				break;
  			}
  		  
- 			//std::string pre  = source + "Pass";
- 			//std::string post = "_HLT";
-
 			std::string objTypeStr = this->getTypeString(*it);
  		  
  		   	for(size_t j = 0; j < matches.size(); j++) 
@@ -296,7 +337,7 @@ std::cout << " Event: " << eventNumber << " --- Cuantos reco tenemos? " << recCo
 
 
 void HLTHiggsPlotter::findMatches(std::vector<MatchStruct> & matches,
-	    	const std::vector<const reco::RecoChargedCandidate *> & candsHlt,
+	    	const std::vector<const reco::RecoEcalCandidate *> & candsHlt,
 		const unsigned int & obj)
 {
   	
@@ -341,16 +382,16 @@ void HLTHiggsPlotter::findMatches(std::vector<MatchStruct> & matches,
 
 
 void HLTHiggsPlotter::bookHist(const std::string & source, 
-		const std::string & objType, const std::string & type)
+		const std::string & objType, const std::string & variable)
 {
 	std::string sourceUpper = source; 
       	sourceUpper[0] = std::toupper(sourceUpper[0]);
-	std::string name = source + objType + "Pass" + type + "_" + _hltPath;
+	std::string name = source + objType + "Pass" + variable + "_" + _hltPath;
       	TH1F * h = 0;
 
-      	if(type.find("MaxPt") != std::string::npos) 
+      	if(variable.find("MaxPt") != std::string::npos) 
 	{
-		std::string desc = (type == "MaxPt1") ? "Leading" : "Next-to-Leading";
+		std::string desc = (variable == "MaxPt1") ? "Leading" : "Next-to-Leading";
 		std::string title = "pT of " + desc + " " + sourceUpper + " " + objType + " "
                    "matched to HLT";
 	    	const size_t nBins = _parametersTurnOn.size() - 1;
@@ -364,10 +405,10 @@ void HLTHiggsPlotter::bookHist(const std::string & source,
       	}
       	else 
 	{
-		std::string symbol = (type == "Eta") ? "#eta" : "#phi";
+		std::string symbol = (variable == "Eta") ? "#eta" : "#phi";
 		std::string title  = symbol + " of " + sourceUpper + " " + objType + " "+
     			"matched to HLT";
-		std::vector<double> params = (type == "Eta") ? _parametersEta : _parametersPhi;
+		std::vector<double> params = (variable == "Eta") ? _parametersEta : _parametersPhi;
 
 	    	int    nBins = (int)params[0];
 	    	double min   = params[1];
@@ -377,18 +418,18 @@ void HLTHiggsPlotter::bookHist(const std::string & source,
       	h->Sumw2();
       	_elements[name] = _dbe->book1D(name, h);
       	delete h;
-std::cout << " Booked: " << name << std::endl;
+//std::cout << " Booked: " << name << std::endl;
 }
 
 void HLTHiggsPlotter::fillHist(const std::string & source, const std::string & objType, 
-		const std::string & type, const float & value )
+		const std::string & variable, const float & value )
 {
 	std::string sourceUpper = source; 
       	sourceUpper[0] = toupper(sourceUpper[0]);
-	std::string name = source + objType + "Pass" + type + "_" + _hltPath;
+	std::string name = source + objType + "Pass" + variable + "_" + _hltPath;
 
 	_elements[name]->Fill(value);
-std::cout << " --- Filled " << name << " (" << _hltPath << ") ->" << value << std::endl;
+//std::cout << " --- Filled " << name << " (" << _hltPath << ") ->" << value << std::endl;
 }
 
 
@@ -404,7 +445,57 @@ void * HLTHiggsPlotter::InitSelector(const unsigned int & objtype)
 	else if( objtype == HLTHiggsSubAnalysis::ELEC )
 	{
 		_recElecSelector = new StringCutObjectSelector<reco::GsfElectron>(_recCut[objtype]);
+		selector = _recElecSelector;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::PHOTON )
+	{
+		_recPhotonSelector = new StringCutObjectSelector<reco::Photon>(_recCut[objtype]);
+		selector = _recPhotonSelector;
+	}
+/*	else if( objtype == HLTHiggsSubAnalysis::JET )
+	{
+		_recJetSelector = new StringCutObjectSelector<reco::Jet>(_recCut[objtype]);
 		selector = _recMuonSelector;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::PFJET )
+	{
+		_recPFJetSelector = new StringCutObjectSelector<reco::pfJet>(_recCut[objtype]);
+		selector = _recMuonSelector;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::MET )
+	{
+		_recMETSelector = new StringCutObjectSelector<reco::caloMET>(_recCut[objtype]);
+		selector = _recMuonSelector;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::PFMET )
+	{
+		_recPFMETSelector = new StringCutObjectSelector<reco::pfMET>(_recCut[objtype]);
+		selector = _recMuonSelector;
+	}*/
+/*	else
+	{
+FIXME: ERROR NO IMPLEMENTADO
+	}*/
+
+	return selector;
+}
+
+/*void * HLTHiggsPlotter::getTriggerObjects(EVTColContainer const * col, 
+		const unsigned int & iFilter, const unsigned int & objtype)
+{	
+	void * hltRefs = 0;
+
+	if( objtype == HLTHiggsSubAnalysis::MUON )
+	{
+		std::vector<reco::RecoChargedCandidateRef> * vrmuons = new std::vector<reco:RecoChargedCandidateRef>;
+		cols->rawTriggerEvent->getObjects(iFilter, trigger::TriggerMuon, (*vrmuons));
+		hltRefs = vrmuons;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::ELEC )
+	{
+		std::vector<reco::ElectronRef> * vrelectron = new std::vector<reco:ElectronRef>;
+		cols->rawTriggerEvent->getObjects(iFilter, trigger::Electron, (*vrmuons));
+		hltRefs = vrelectron;
 	}
 /*	else if( objtype == HLTHiggsSubAnalysis::Photon )
 	{
@@ -435,10 +526,9 @@ void * HLTHiggsPlotter::InitSelector(const unsigned int & objtype)
 	{
 FIXME: ERROR NO IMPLEMENTADO
 	}*/
-
-	return selector;
-}
-
+/*
+	return hltRef;
+}*/
 
 //! 
 const std::string HLTHiggsPlotter::getTypeString(const unsigned int & objtype) const
