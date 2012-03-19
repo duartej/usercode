@@ -30,15 +30,15 @@
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
 #include "DataFormats/EgammaCandidates/interface/Photon.h"
 
-
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "DQMServices/Core/interface/MonitorElement.h"
 
+#include "HLTriggerOffline/Higgs/src/MatchStruct.cc"
 
 #include <vector>
 #include <cstring>
 #include <map>
-#include <iostream>
+#include <set>
 
 const unsigned int kNull = (unsigned int) -1;
 
@@ -54,63 +54,26 @@ class HLTHiggsPlotter
 		~HLTHiggsPlotter();
 	      	void beginJob();
 	      	void beginRun(const edm::Run &, const edm::EventSetup &);
-	      	void analyze(const edm::Event &, const edm::EventSetup &, EVTColContainer * cols);
+	      	void analyze(const bool & passTrigger, const std::string & source, 
+				const std::vector<MatchStruct> & matches);
+
+		inline const std::string gethltpath() const { return _hltPath; }
 		
        	private:
-	      	
-	      	struct MatchStruct 
-		{
-		    	const reco::Candidate * candBase;
-			//std::vector<const reco::RecoChargedCandidate *> candHlt;
-			std::vector<const reco::RecoEcalCandidate *> candHlt;
-		    	MatchStruct() 
-			{
-			  	candBase   = 0;
-		    	}
-		    	MatchStruct(const reco::Candidate * cand) 
-			{
-			  	candBase = cand;
-		    	}
-		    	bool operator<(MatchStruct match) 
-			{      
-				return candBase->pt() < match.candBase->pt();
-		    	}
-		    	bool operator>(MatchStruct match) 
-			{
-			  	return candBase->pt() > match.candBase->pt();
-		    	}
-	      	};
-		
-	      	struct matchesByDescendingPt 
-		{
-		     	bool operator() (MatchStruct a, MatchStruct b) 
-			{     
-			       	return a.candBase->pt() > b.candBase->pt();
-		    	}
-	      	};
-
-	      	void analyzePath(const edm::Event &,
-	     			const std::string &, const std::string &,
-	     			const std::vector<MatchStruct>, 
-	     			edm::Handle<trigger::TriggerEventWithRefs>);
-	      	/*void findMatches(std::vector<MatchStruct> & matches, 
-			  	const std::vector<const reco::RecoChargedCandidate *> & candsHLT,
-				const unsigned int & obj);*/
-	      	void findMatches(std::vector<MatchStruct> & matches, 
-			  	const std::vector<const reco::RecoEcalCandidate *> & candsHLT,
-				const unsigned int & obj);
 	      	void bookHist(const std::string & source, const std::string & objType, const std::string & variable);
-	      	void fillHist(const std::string & source, const std::string & objType,
-				const std::string & var, const float & value);
+	      	void fillHist(const bool & passTrigger, const std::string & source, 
+				const std::string & objType, const std::string & var, 
+				const float & value);
 		
-		void * InitSelector(const unsigned int & objtype);
 		const std::string getTypeString(const unsigned int & objtype) const;
 
 	      	std::string _hltPath;
 		std::string _lastFilter;
 		std::string _hltProcessName;
 
-		std::vector<unsigned int> _objectsType;
+		std::set<unsigned int> _objectsType;
+		// Number of objects (elec,muons, ...) needed in the hlt path
+		unsigned int _nObjects; 
 		
 	      	std::vector<double> _parametersEta;
 	      	std::vector<double> _parametersPhi;
@@ -120,21 +83,9 @@ class HLTHiggsPlotter
 		std::map<unsigned int,double> _cutMaxEta;
 		std::map<unsigned int,unsigned int> _cutMotherId;
 		std::map<unsigned int,std::vector<double> > _cutsDr;
-		std::map<unsigned int,std::string> _genCut;
-		std::map<unsigned int,std::string> _recCut;
+//		std::map<unsigned int,std::string> _genCut;
+//		std::map<unsigned int,std::string> _recCut;
 		
-	      	StringCutObjectSelector<reco::GenParticle> * _genSelector;
-	      	//StringCutObjectSelector<reco::Candidate>   * _recSelector;
-	      	StringCutObjectSelector<reco::Muon>        * _recMuonSelector;
-	      	StringCutObjectSelector<reco::GsfElectron> * _recElecSelector;
-	      	//StringCutObjectSelector<reco::caloMET>    * _recMETSelector;
-/*	      	StringCutObjectSelector<reco::pfMET>        * _recPFMETSelector;
-	      	StringCutObjectSelector<reco::Jet>         * _recJetSelector;
-	      	StringCutObjectSelector<reco::pfJet>       * _recPFJetSelector;*/
-	      	StringCutObjectSelector<reco::Photon>      * _recPhotonSelector;
-	      	
-		//! Map to reference the object type with its selector
-		std::map<unsigned int, void *> _recObjSelRef;
 		
 	      	DQMStore* _dbe;
 	      	std::map<std::string, MonitorElement *> _elements;		

@@ -4,10 +4,6 @@
  *  $Revision: 1.2 $
  */
 
-
-
-
-
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
@@ -19,28 +15,56 @@
 #include "DataFormats/Common/interface/TriggerResults.h"
 #include "FWCore/Common/interface/TriggerNames.h"
 
-#include "TPRegexp.h"
+#include "HLTriggerOffline/Higgs/interface/HLTHiggsSubAnalysis.h"
+#include "HLTriggerOffline/Higgs/src/MatchStruct.cc"
 
+#include "TPRegexp.h"
 #include "TString.h"
 
 #include<set>
+#include<algorithm>
 
 
 HLTHiggsSubAnalysis::HLTHiggsSubAnalysis(const edm::ParameterSet & pset,
 		const std::string & analysisname) :
 	_pset(pset),
 	_analysisname(analysisname),
+	_minCandidates(0),
 	_hltProcessName(pset.getParameter<std::string>("hltProcessName")),
 	_genParticleLabel(pset.getParameter<std::string>("genParticleLabel")),
+      	_parametersEta(pset.getParameter<std::vector<double> >("parametersEta")),
+  	_parametersPhi(pset.getParameter<std::vector<double> >("parametersPhi")),
+  	_parametersTurnOn(pset.getParameter<std::vector<double> >("parametersTurnOn")),
+	_genSelector(0),
+	_recMuonSelector(0),
+	_recElecSelector(0),
+	/*_recMETSelector(0),
+	_recPFMETSelector(0),
+	_recJetSelector(0),
+	_recPFJetSelector(0),*/
+	_recPhotonSelector(0),
 	_dbe(0)
 {
+	for(std::map<unsigned int,std::string>::const_iterator it = _recLabels.begin();
+			it != _recLabels.end(); ++it)
+	{
+		const std::string objStr = this->getTypeString(it->first);
+		_genCut[it->first] = pset.getParameter<std::string>( std::string(objStr+"_genCut").c_str() );
+		_recCut[it->first] = pset.getParameter<std::string>( std::string(objStr+"_recCut").c_str() );
+		_cutMinPt[it->first] = pset.getParameter<double>( std::string(objStr+"_cutMinPt").c_str() );
+		_cutMaxEta[it->first] = pset.getParameter<double>( std::string(objStr+"_cutMaxEta").c_str() );
+		_cutMotherId[it->first] = pset.getParameter<unsigned int>( std::string(objStr+"_cutMotherId").c_str() );
+		_cutsDr[it->first] = pset.getParameter<std::vector<double> >( std::string(objStr+"_cutDr").c_str() );
+	}
+	// Specific parameters for this analysis
 	edm::ParameterSet anpset = pset.getParameter<edm::ParameterSet>(analysisname);
-	//FIXME: CHECK ERRORS
 
 	// Collections labels (but genparticles already initialized)
 	this->bookobjects( anpset );
 
+	//FIXME: CHECK ERRORS
 	_hltPathsToCheck = anpset.getParameter<std::vector<std::string> >("hltPathsToCheck");
+	_minCandidates = anpset.getParameter<unsigned int>("minCandidates");
 
 	_dbe = edm::Service<DQMStore>().operator->();
       	_dbe->setVerbose(0);
@@ -48,6 +72,26 @@ HLTHiggsSubAnalysis::HLTHiggsSubAnalysis(const edm::ParameterSet & pset,
 
 HLTHiggsSubAnalysis::~HLTHiggsSubAnalysis()
 {
+	if( _genSelector != 0)
+	{
+		delete _genSelector;
+		_genSelector =0;
+	}
+	if( _recMuonSelector != 0)
+	{
+		delete _recMuonSelector;
+		_recMuonSelector =0;
+	}
+	if( _recElecSelector != 0)
+	{
+		delete _recElecSelector;
+		_recElecSelector =0;
+	}
+	if( _recPhotonSelector != 0)
+	{
+		delete _recPhotonSelector;
+		_recPhotonSelector =0;
+	}
 }
 
 
@@ -71,7 +115,9 @@ void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup 
 	}
 
 
-	// Parse the paths and init
+	// Parse the input paths to get them if there are in the table 
+	// and associate them the last filter of the path (in order to extract the
+	// trigger objects to match with the reco/gen objects)
 	_hltPaths.clear();
 	std::map<std::string,std::string> pathLastFilter;
 	for(size_t i = 0; i < _hltPathsToCheck.size(); ++i)
@@ -84,14 +130,17 @@ void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup 
 			{
 				_hltPaths.insert(thetriggername);
 				std::vector<std::string> mods = _hltConfig.moduleLabels(thetriggername);
-				pathLastFilter[thetriggername] = mods.at(mods.size()-2); // mods
+				// Extract the last filter (to get the trigger objects 
+				// which passing the filter)
+				pathLastFilter[thetriggername] = mods.at(mods.size()-2); 
 			}
 		}
 	}
+
       	// Initialize the plotters (analysers for each trigger path)
 	_analyzers.clear();
   	for(std::set<std::string>::iterator iPath = _hltPaths.begin(); 
-			iPath != _hltPaths.end(); iPath++) 
+			iPath != _hltPaths.end(); ++iPath) 
 	{
 		std::string path = * iPath;
 		std::string shortpath = path;
@@ -99,49 +148,204 @@ void HLTHiggsSubAnalysis::beginRun(const edm::Run & iRun, const edm::EventSetup 
 		{
 			shortpath = path.substr(0, path.rfind("_v"));
 		}
-      				
-		HLTHiggsPlotter analyzer(_pset, shortpath, pathLastFilter[path],this->getObjectsType(shortpath), _dbe);
+		_shortpath2long[shortpath] = path;
+
+		// Sanity check: the object needed by a trigger path  was
+		// introduced by the user via config python (_recLabels datamember)
+		const std::vector<unsigned int> objsNeedHLT = this->getObjectsType(shortpath);
+		if( objsNeedHLT.size() == 0 )
+		{
+			edm::LogError("HiggsValidation") << "In HLTHiggsSubAnalysis::beginRun, " 
+				<< "Incoherence found in the python configuration file!!\nThe SubAnalysis '" 
+				<< _analysisname << "' has been asked to evaluate the trigger path '"
+				<< shortpath << "' (found it in 'hltPathsToCheck') BUT this path"
+				<< " needs a variable which has not been instantiate ('recVariableLabels'" 
+				<< ")" ;
+			exit(-1);
+		}
+
+		// the hlt path, its last filter, the objects (elec,muons,photons,...)
+		// needed to evaluate the path are the argumens of the plotter
+		HLTHiggsPlotter analyzer(_pset, shortpath, pathLastFilter[path],
+				objsNeedHLT, _dbe);
 		_analyzers.push_back(analyzer);
     	}
-      	// Call the beginRun (which books all the histograms)
+
+      	// Call the beginRun (which books all the path dependent histograms)
       	for(std::vector<HLTHiggsPlotter>::iterator it = _analyzers.begin(); 
 			it != _analyzers.end(); ++it) 
 	{
 	    	it->beginRun(iRun, iSetup);
+	}
+
+	// Book the gen/reco analysis-dependent histograms (denominators)
+	for(std::map<unsigned int,std::string>::const_iterator it = _recLabels.begin();
+			it != _recLabels.end(); ++it)
+	{
+		const std::string objStr = this->getTypeString(it->first);
+		std::vector<std::string> sources(2);
+		sources[0] = "gen";
+		sources[1] = "rec";
+	  
+		for(size_t i = 0; i < sources.size(); i++) 
+		{
+			std::string source = sources[i];
+			bookHist(source, objStr, "Eta");
+			bookHist(source, objStr, "Phi");
+			bookHist(source, objStr, "MaxPt1");
+			bookHist(source, objStr, "MaxPt2");
+		}
 	}
 }
 
 
 
 void HLTHiggsSubAnalysis::analyze(const edm::Event & iEvent, const edm::EventSetup & iSetup, 
-		EVTColContainer * collections)
+		EVTColContainer * cols)
 {
       	static int eventNumber = 0;
       	eventNumber++;
       	LogTrace("HLTHiggsValidation") << "In HLTHiggsSubAnalysis::analyze,  " 
 		<< "Event: " << eventNumber;
 
-	// Initialize the collection (the ones which hasn't been initiliazed yet)
- 	this->initobjects(iEvent,collections);
+	// Initialize the collection (the ones which hasn't been initialiazed yet)
+ 	this->initobjects(iEvent,cols);
 
-	//Opcion no match con el objecto de trigger solo comprobar si el trigger paso el corte o no
-	//edm::Handle<edm::TriggerResults> trigResults; ---> Collections
-	/*edm::InputTag trigResultsTag("TriggerResults","",collections->rawTriggerEvent->usedProcessName());
-        iEvent.getByLabel(trigResultsTag,trigResults);
-	const edm::TriggerNames trigNames = iEvent.triggerNames(*trigResults);
-	for(std::set<std::string>::iterator iPath = _hltPaths.begin(); 
-	iPath != _hltPaths.end(); iPath++) 
+	//! Map to reference the object type with its selector
+	std::map<unsigned int, void *> recObjSelRef;
+	// Map to reference the source (gen/reco) with the recoCandidates
+	std::map<unsigned int,std::vector<MatchStruct> > sourceMatchMap;
+	// utility map
+	std::map<unsigned int,std::string> u2str;
+	u2str[GEN]="gen";
+	u2str[RECO]="rec";
+	// Extract the match structure containing the gen/reco candidates (electron, muons,...)
+	// common to all the SubAnalysis
+	for(std::map<unsigned int,std::string>::iterator it = _recLabels.begin(); 
+			it != _recLabels.end(); ++it)
 	{
-		trigResults->accept(trigNames.triggerIndex(*iPath));
-	}*/
+		std::vector<unsigned int> sources;
+		bool hasGen = false;
+		if( cols->genParticles != 0 )
+		{
+			// using the mc particles to evaluate the efficiencies
+			sources.push_back(GEN);
+			hasGen = true;
+		}
+
+		bool hasReco = false;
+		if(cols->get(it->first) != 0)
+		{
+			// Using the reco particles to evaluate the efficiencies
+			sources.push_back(RECO);
+			hasReco = true;
+		}
+
+		// Extraction of the gen/reco candidates 
+		for(size_t sourceNo = 0; sourceNo < sources.size(); ++sourceNo)
+		{
+			const unsigned int source = sources[sourceNo];
+			// Initialize selectors when first event
+			if(!_genSelector) 
+ 			{
+ 				_genSelector      = new StringCutObjectSelector<reco::GenParticle>(_genCut[it->first]);
+			}
+			if(!recObjSelRef[it->first])
+			{
+				recObjSelRef[it->first]= this->InitSelector(it->first);
+			}
+ 		    	// Make each good gen/rec object into the base cand for a MatchStruct
+ 			std::vector<MatchStruct> matches;
+ 		    	if(source == GEN && hasGen)
+ 			{
+ 			  	for(size_t i = 0; i < cols->genParticles->size(); ++i)
+ 				{
+ 					if(_genSelector->operator()(cols->genParticles->at(i)))
+ 					{
+ 				       		matches.push_back(MatchStruct(&cols->genParticles->at(i),it->first));
+ 					}
+ 				}
+ 			}
+ 			if(source == RECO && hasReco)
+ 			{
+				const std::vector<reco::Candidate> * recCol = cols->get(it->first);
+				StringCutObjectSelector<reco::Candidate> * recSelector = 
+					static_cast<StringCutObjectSelector<reco::Candidate>* >(recObjSelRef[it->first]);
+ 			  	for(size_t i = 0; i < recCol->size(); i++)
+ 				{
+ 					if(recSelector->operator()(recCol->at(i)))
+ 					{
+ 				      		matches.push_back(MatchStruct(&recCol->at(i),it->first));
+ 					}
+ 				}
+ 			}
+			// Sort the MatchStructs by pT for later filling of turn-on curve
+			std::sort(matches.begin(), matches.end(), matchesByDescendingPt());
+			sourceMatchMap[source] = matches;
+		}
+	}
 	
-	for(std::vector<HLTHiggsPlotter>::iterator it = _analyzers.begin();
-			it != _analyzers.end(); ++it)
+	// Filling the histograms if pass the minimum amount of candidates needed by the analysis
+	for(std::map<unsigned int,std::vector<MatchStruct> >::iterator it = sourceMatchMap.begin(); 
+			it != sourceMatchMap.end(); ++it)
 	{
-		it->analyze(iEvent,iSetup,collections);
-	} 
+		// it->first: gen/reco   it->second: matches (std::vector<MatchStruc>)
+		if( it->second.size() < _minCandidates )
+		{
+			continue;
+		}
+		
+		// Filling the gen/reco objects (eff-denominators): 
+		// Just the first two if there are more
+		for(size_t j = 0; j < it->second.size(); ++j)
+		{
+			std::string objTypeStr = this->getTypeString((it->second)[j].objType);
+
+			float pt  = (it->second)[j].candBase->pt();
+			float eta = (it->second)[j].candBase->eta();
+			float phi = (it->second)[j].candBase->phi();
+			this->fillHist(u2str[it->first],objTypeStr,"Eta",eta);
+			this->fillHist(u2str[it->first],objTypeStr,"Phi",phi);
+			if( j == 0 )
+			{
+				this->fillHist(u2str[it->first],objTypeStr,"MaxPt1",pt);
+			}
+			else if( j == 1 )
+			{
+				this->fillHist(u2str[it->first],objTypeStr,"MaxPt2",pt);
+				break;
+			}
+		}
+	}
+	
+	// Setting up the trigger: EVTColContainer tiene que cogerlo...
+	edm::Handle<edm::TriggerResults> trigResults;
+	edm::InputTag trigResultsTag("TriggerResults","",cols->rawTriggerEvent->usedProcessName());
+        iEvent.getByLabel(trigResultsTag,trigResults);
+
+	const edm::TriggerNames trigNames = iEvent.triggerNames(*trigResults);
+	//const edm::TriggerNames trigNames = iEvent.triggerNames(cols->triggerResults);
+
+
+	// Calling to the plotters analysis (where the evaluation of the different trigger paths are done)
+	for(std::map<unsigned int,std::vector<MatchStruct> >::iterator um = sourceMatchMap.begin();
+			um != sourceMatchMap.end(); ++um)
+	{
+		// gen/rec
+		std::string source = u2str[um->first];
+		for(std::vector<HLTHiggsPlotter>::iterator it = _analyzers.begin();
+					it != _analyzers.end(); ++it)
+		{
+			const std::string hltPath = _shortpath2long[it->gethltpath()];
+			//const bool ispassTrigger =  cols->triggerResults->accept(trigNames.triggerIndex(hltPath));
+			const bool ispassTrigger =  trigResults->accept(trigNames.triggerIndex(hltPath));
+			it->analyze(ispassTrigger,source,um->second);
+		}
+	}
 }
 
+// Return the objects (muons,electrons,photons,...) needed by a hlt path. Note that it 
+// returns a vector which can contain repeated elements if it is a double path for instance
 const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType(const std::string & hltPath) const
 {
 	std::vector<unsigned int> objsType;
@@ -155,7 +359,25 @@ const std::vector<unsigned int> HLTHiggsSubAnalysis::getObjectsType(const std::s
 		{
 			continue;
 		}
-		objsType.push_back(it->first);
+
+		// Number of ocurrences of the object (so how many objects we need)
+		int n = 0;
+		std::string::size_type pos = 0;
+		while( (pos = hltPath.find( objTypeStr, pos)) != std::string::npos )
+		{
+			++n;
+			pos += objTypeStr.size();
+		} // End algorithm to extract n-ocurrences
+		int nocur = n;
+		for(int i = 0; i < nocur; ++i)
+		{
+			objsType.push_back(it->first);
+		}
+		// Or (and) if has the double label in the name
+		if( TString(hltPath).Contains("Double") )
+		{
+			objsType.push_back(it->first);
+		}
 	}
 	return objsType;
 }
@@ -223,6 +445,10 @@ void HLTHiggsSubAnalysis::initobjects(const edm::Event & iEvent, EVTColContainer
 			return;
 		}
 		col->rawTriggerEvent = rawTEH.product();
+	
+		//edm::Handle<edm::TriggerResults> trigResults;
+		//edm::InputTag trigResultsTag("TriggerResults","",col->rawTriggerEvent->usedProcessName());
+		//iEvent.getByLabel(trigResultsTag,trigResults);
 
 		edm::Handle<reco::GenParticleCollection> genPart;
 		iEvent.getByLabel(_genParticleLabel,genPart);
@@ -263,6 +489,53 @@ void HLTHiggsSubAnalysis::initobjects(const edm::Event & iEvent, EVTColContainer
 	}
 }
 
+void HLTHiggsSubAnalysis::bookHist(const std::string & source, 
+		const std::string & objType, const std::string & variable)
+{
+	std::string sourceUpper = source; 
+      	sourceUpper[0] = std::toupper(sourceUpper[0]);
+	std::string name = source + objType + variable ;
+      	TH1F * h = 0;
+
+      	if(variable.find("MaxPt") != std::string::npos) 
+	{
+		std::string desc = (variable == "MaxPt1") ? "Leading" : "Next-to-Leading";
+		std::string title = "pT of " + desc + " " + sourceUpper + " " + objType;
+	    	const size_t nBins = _parametersTurnOn.size() - 1;
+	    	float * edges = new float[nBins + 1];
+	    	for(size_t i = 0; i < nBins + 1; i++)
+		{
+			edges[i] = _parametersTurnOn[i];
+		}
+	    	h = new TH1F(name.c_str(), title.c_str(), nBins, edges);
+		delete edges;
+      	}
+      	else 
+	{
+		std::string symbol = (variable == "Eta") ? "#eta" : "#phi";
+		std::string title  = symbol + " of " + sourceUpper + " " + objType;
+		std::vector<double> params = (variable == "Eta") ? _parametersEta : _parametersPhi;
+
+	    	int    nBins = (int)params[0];
+	    	double min   = params[1];
+	    	double max   = params[2];
+	    	h = new TH1F(name.c_str(), title.c_str(), nBins, min, max);
+      	}
+      	h->Sumw2();
+      	_elements[name] = _dbe->book1D(name, h);
+      	delete h;
+}
+
+void HLTHiggsSubAnalysis::fillHist(const std::string & source, 
+		const std::string & objType, const std::string & variable, const float & value )
+{
+	std::string sourceUpper = source; 
+      	sourceUpper[0] = toupper(sourceUpper[0]);
+	std::string name = source + objType + variable ;
+
+	_elements[name]->Fill(value);
+}
+
 const std::string HLTHiggsSubAnalysis::getTypeString(const unsigned int & objtype) const
 {
 	std::string objTypestr("Mu");
@@ -295,24 +568,50 @@ const std::string HLTHiggsSubAnalysis::getTypeString(const unsigned int & objtyp
 }
 
 
-std::vector<std::string> HLTHiggsSubAnalysis::moduleLabels(const std::string & path) 
-{
-	std::vector<std::string> modules = _hltConfig.moduleLabels(path);
-	std::vector<std::string>::iterator iter = modules.begin();
-	
-      	while(iter != modules.end())
+
+void * HLTHiggsSubAnalysis::InitSelector(const unsigned int & objtype)
+{	
+	void * selector = 0;
+
+	if( objtype == HLTHiggsSubAnalysis::MUON )
 	{
-		if (iter->find("Filter") == std::string::npos)
-		{
-		  	iter = modules.erase(iter);
-		}    
-		else
-		{
-		  	++iter;
-		}
+		_recMuonSelector = new StringCutObjectSelector<reco::Muon>(_recCut[objtype]);
+		selector = _recMuonSelector;
 	}
-	
-	return modules;
+	else if( objtype == HLTHiggsSubAnalysis::ELEC )
+	{
+		_recElecSelector = new StringCutObjectSelector<reco::GsfElectron>(_recCut[objtype]);
+		selector = _recElecSelector;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::PHOTON )
+	{
+		_recPhotonSelector = new StringCutObjectSelector<reco::Photon>(_recCut[objtype]);
+		selector = _recPhotonSelector;
+	}
+/*	else if( objtype == HLTHiggsSubAnalysis::JET )
+	{
+		_recJetSelector = new StringCutObjectSelector<reco::Jet>(_recCut[objtype]);
+		selector = _recMuonSelector;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::PFJET )
+	{
+		_recPFJetSelector = new StringCutObjectSelector<reco::pfJet>(_recCut[objtype]);
+		selector = _recMuonSelector;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::MET )
+	{
+		_recMETSelector = new StringCutObjectSelector<reco::caloMET>(_recCut[objtype]);
+		selector = _recMuonSelector;
+	}
+	else if( objtype == HLTHiggsSubAnalysis::PFMET )
+	{
+		_recPFMETSelector = new StringCutObjectSelector<reco::pfMET>(_recCut[objtype]);
+		selector = _recMuonSelector;
+	}*/
+/*	else
+	{
+FIXME: ERROR NO IMPLEMENTADO
+	}*/
+
+	return selector;
 }
-
-
