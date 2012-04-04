@@ -25,7 +25,9 @@ const unsigned int kTauPID = 15; //Found with TDatabasePDG::Instance()->GetParti
 
 AnalysisWZ::AnalysisWZ( TreeManager * data, std::map<LeptonTypes,InputParameters*> ipmap, 
 				CutManager * selectorcuts, const unsigned int & finalstate ) :
-	AnalysisBase(data,ipmap,selectorcuts,finalstate ) 
+	AnalysisBase(data,ipmap,selectorcuts,finalstate ),
+	_nTMuons(0),
+	_nTElecs(0)
 { 
 	// Number of cuts
 	fNCuts = WZCuts::_iNCuts;
@@ -33,7 +35,13 @@ AnalysisWZ::AnalysisWZ( TreeManager * data, std::map<LeptonTypes,InputParameters
 	{
 		fCutNames.push_back(WZCuts::kCutNames[i]);
 	}
-} 
+}
+
+AnalysisWZ::~AnalysisWZ()
+{
+	std::cout << "======= Number of no Tight Muons: " << _nTMuons << std::endl;
+	std::cout << "======= Number of no Tight Elecs: " << _nTElecs << std::endl;
+}
 
 
 void AnalysisWZ::Initialise()
@@ -109,7 +117,8 @@ void AnalysisWZ::Initialise()
 		_histos[fHEventsPerCut3Lepton]->GetXaxis()->SetBinLabel(i+1,WZCuts::kCutNames[i]);
 	}
 
-	// Number of Primary Vertices in the event
+	// Number of Primary Vertices in the event: before all cuts
+	_histos[fHNPrimaryVerticesAfter3Leptons] = CreateH1D("fHNPrimaryVerticesAfter3Leptons", "Number of Primary Vertices", 31, 0, 30);
 	_histos[fHNPrimaryVertices] = CreateH1D("fHNPrimaryVertices", "Number of Primary Vertices", 31, 0, 30);
 
 	// Reconstructed muons in the event
@@ -168,6 +177,35 @@ void AnalysisWZ::Initialise()
 	_histos[fHdRl1Wcand] = CreateH1D("fHdRl1Wcand","dR Z-cand. lepton leading w.r.t. W-cand. lepton",100,0,5);
 	// dR between leading lepton for the Z candidate and the W candidate lepton
 	_histos[fHdRl2Wcand] = CreateH1D("fHdRl2Wcand","dR Z-cand. lepton trailing w.r.t. W-cand. lepton",100,0,5);
+
+	// FIXME: PROVISIONAL --- CHECK PARA MUONES VALDRA PARA TODOS
+	/*TH2F * hprov = fFO->GetFakeMapTemplate(MUON);
+	if( hprov != 0 )
+	{
+		const int nbinsx  = hprov->GetNbinsX();
+		const int nbinsy  = hprov->GetNbinsY();
+		float xbins[nbinsx];
+		for(int i=0; i <= nbinsx ; ++i)
+		{
+			xbins[i] = hprov->GetXaxis()->GetBinLowEdge(i+1);
+		}
+		float ybins[nbinsy];
+		for(int i=0; i <= nbinsy ; ++i)
+		{
+			ybins[i] = hprov->GetYaxis()->GetBinLowEdge(i+1);
+		}
+		fHPTETA_NOTIGHTS = CreateH2F( "fHPTETA_NOTIGHTS", "" , 
+				nbinsx, xbins,
+				nbinsy, ybins);
+		fHPTETA_NOTIGHTS_WEIGHTED = CreateH2F( "fHPTETA_NOTIGHTS_WEIGHTED", "" , 
+				nbinsx, xbins,
+				nbinsy, ybins);
+		delete hprov;
+	}*/
+
+	_histos[fHIsoLepton] = CreateH1D("fHIsoLepton","#sum Iso_{total}/p_{t}",100,0,0.4);
+	_histos[fHD0Lepton] = CreateH1D("fHD0Lepton","d_{0}",100,0,0.2);
+	
 }
 
 //---------------------------------------------------------------------
@@ -182,11 +220,14 @@ unsigned int AnalysisWZ::InsideLoop()
 	// Get PU Weight
 	//----------------------------------------------------------------------
 	double puw(1);
-	const int nPV = fData->Get<int>("T_Event_nPU");
+	const int nPV = fData->GetSize<int>("T_Vertex_z");
 	if(!fIsData)
 	{
-		puw = fPUWeight->GetWeight(nPV);
+		puw = fPUWeight->GetWeight(fData->Get<int>("T_Event_nPU"));
 	}
+	
+	// Filling the npv to see how was weighted
+	_histos[fHNPrimaryVertices]->Fill(nPV,puw);
 
 	// Generation studies
 	//----------------------------------------------------------------------
@@ -429,13 +470,8 @@ unsigned int AnalysisWZ::InsideLoop()
 	}
 	_histos[fHProcess]->Fill(procn);
 
-	/*if(fIsWH && (procn != _iWH || fsNTau != fFS))
-	{
-		return WZCuts::_iIsWH;
-	}*/
+	FillHistoPerCut(WZCuts::_iIsWZ, puw, fsNTau);
 	
-	FillHistoPerCut(WZCuts::_iIsWH, puw, fsNTau);
-
 	// HLT: TBD...
 	//------------------------------------------------------------------
 	if( ! IspassHLT() )
@@ -505,41 +541,116 @@ unsigned int AnalysisWZ::InsideLoop()
 	
 	FillHistoPerCut(WZCuts::_iHas2IsoGoodLeptons, puw, fsNTau);	
 	//FillGenPlots(_iHas2IsoGoodLeptons,puw);
-	// Keep events at least 3 leptons and store momentum and charge
+	
+	// Storing all Iso-ID (tight,loose) variables before cut
+	// Indexs of good leptons (noTight+Tights if proceed)
+	std::vector<int> * theLeptons = fLeptonSelection->GetGoodLeptons(); 
+	int howmanyMuons = 0;
+	int howmanyElecs = 0;
+	for(unsigned int k=0; k < theLeptons->size(); ++k)
+	{
+		const unsigned int i = (*theLeptons)[k];
+		LeptonTypes ileptontype = fLeptonSelection->GetLeptonType(k);
+		std::string lepton;
+		std::string laux;
+		if( ileptontype == MUON )
+		{
+			lepton = "Muon";
+			laux = "_mu";
+			++howmanyMuons;
+		}
+		else
+		{
+			lepton = "Elec";
+			laux = "_ele";
+			++howmanyElecs;
+		}
+		TLorentzVector lvec = this->GetTLorentzVector(lepton.c_str(),i);
+		std::string Isostr("T_"+lepton+laux+"SmurfPF");
+		std::string IPstr("T_"+lepton+"_IP2DBiasedPV");
+		_histos[fHIsoLepton]->Fill(fData->Get<float>(Isostr.c_str(),i)/lvec.Pt(),puw);
+		_histos[fHD0Lepton]->Fill(fData->Get<float>(IPstr.c_str(),i),puw);
+	}
+	
+	//The signature has to be fulfilled
+	bool fulfillSignature = false;
+	const int nMuonsNeeded =  SignatureFS::GetNMuons( fFS );
+	const int nElecsNeeded =  SignatureFS::GetNElecs( fFS );
+	if( nMuonsNeeded == howmanyMuons && nElecsNeeded == howmanyElecs )
+	{
+		fulfillSignature = true;
+	}
+	// Keep events with exactly 3 leptons and the asked signature
+	// and store momentum and charge
 	//---------------------------------------------------------------------------
-	if( ! fLeptonSelection->IspassAtLeastN() )
+	//if( ! fLeptonSelection->IspassAtLeastN() )
+	if( (! fLeptonSelection->IspassExactlyN()) || (! fulfillSignature) )
 	{
 		return WZCuts::_iHasAtLeast3Leptons;
 	}
 	// Using the fake rate if we are in fake mode
-	if( fFO != 0 )
+	if( fFO != 0 && fLeptonSelection->GetNAnalysisNoTightLeptons() != 0 )
 	{
-		//FIXME: Note that by the moment we are assuming that the only fakeable sample
-		// available is TTnT, so there are just 1 no tight lepton (and must be at least 1)
-		const unsigned int i = fLeptonSelection->GetNoTightIndex(0);
-		const LeptonTypes ileptontype= fLeptonSelection->GetNoTightLeptonType(0);
-		const char * name = 0;
-		if( ileptontype == MUON )
+		// As we are using the approximation PromptRate=1, then
+		// PPF (3,2) = fF0->GetWeight
+		// PFF (3,1) = (fFO->GetWeight)^2
+		// FFF (3,0) = (fFO->GetWeight)^3
+		// Where (N,T) are actually the number of Total leptons and PROMPT leptons. 
+		// This equivalence between tight-prompt can be done because of the approximations
+		// used. So, each tight lepton is weighted in order to get its probability to be
+		// prompt.
+		for(unsigned int k = 0; k < fLeptonSelection->GetNAnalysisNoTightLeptons(); ++k)
 		{
-			name = "Muon";
+			const unsigned int i = fLeptonSelection->GetNoTightIndex(k);
+			const LeptonTypes ileptontype= fLeptonSelection->GetNoTightLeptonType(k);
+			const char * name = 0;
+			if( ileptontype == MUON )
+			{
+				name = "Muon";
+				++_nTMuons;
+			}
+			else
+			{
+				name = "Elec";
+				++_nTElecs;
+			}
+			TLorentzVector lvec = this->GetTLorentzVector(name,i);
+			const double pt  = lvec.Pt();
+			const double eta = lvec.Eta();
+			puw *= fFO->GetWeight(ileptontype,pt,eta);
 		}
-		else
+	}
+
+	// Including the scale factors if proceed:    FIXME: CODE DOBLADO... MODIFICAR Y MEJORAR
+	if( !fIsData )
+	{
+		int k = 0;
+		for(std::vector<int>::iterator it = theLeptons->begin(); it != theLeptons->end();
+				++it)
 		{
-			name = "Elec";
+			unsigned int i = *it;
+			const LeptonTypes ilt = fLeptonSelection->GetLeptonType(k);
+			const char * name = 0;
+			if( ilt == MUON )
+			{
+				name = "Muon";
+			}
+			else
+			{
+				name = "Elec";
+			}
+			TLorentzVector lvec = this->GetTLorentzVector(name,i);
+			const double pt  = lvec.Pt();
+			const double eta = lvec.Eta();
+			puw *= fSF->GetWeight(ilt,pt,eta);
+			++k;
 		}
-		TLorentzVector lvec = this->GetTLorentzVector(name,i);
-		const double pt  = lvec.Pt();
-		const double eta = lvec.Eta();
-		puw *= fFO->GetWeight(ileptontype,pt,eta);
 	}
 	FillHistoPerCut(WZCuts::_iHasAtLeast3Leptons, puw, fsNTau);
 	FillGenPlots(WZCuts::_iHasAtLeast3Leptons,puw);
 
 	// N-primary vertices
-	_histos[fHNPrimaryVertices]->Fill(nPV,puw);
-
-	// Indexs of good leptons (noTight+Tights if proceed)
-	std::vector<int> * theLeptons = fLeptonSelection->GetGoodLeptons(); 
+	_histos[fHNPrimaryVerticesAfter3Leptons]->Fill(nPV,puw);
 
 	// + Fill histograms with Pt and Eta
 	int k = 0;  // Note that k is the index of the vectors, not the TTree
@@ -696,7 +807,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	// + Fill histograms
 	//   - Invariant mass of leptons supposedly from Z
 	_histos[fHZInvMassAfterZCand]->Fill(invMassLL,puw);
-	// Extract MET to fill histograms
+	// Extract MET to fill histograms:
 	const double met = fData->Get<float>("T_METPF_ET");
 	_histos[fHMETAfterZCand]->Fill(met,puw);
 	

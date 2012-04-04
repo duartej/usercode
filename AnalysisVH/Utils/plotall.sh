@@ -15,7 +15,7 @@ Generate the plots and tables of each final state
 
 SYNTAX:
 
-   $0 [-l luminosity] [-a] [-F] <WZ|WHnnn>
+   $0 [-l luminosity] [-a] [-F|-f] <WZ|WHnnn>
 
 
    Note that the signal is a mandatory argument. WHnnn must be
@@ -25,7 +25,7 @@ SYNTAX:
 
 OPTIONS:
 
-   [-l]: Set the luminosity. Default: 4664.7 (full 2011 period)
+   [-l]: Set the luminosity. Default: 4922.0 (full 2011 period- UPDATED at March-2012)
    [-a]: Activate the autobinning
    [-F]: Activate the fake mode (Z+Jets,DY and tbar{t} = PPF)
    [-f]: Activate fakeable mode: the Fakes data sample is considered
@@ -37,7 +37,8 @@ EOF
 }
 
 # Default
-luminosity=4664.7
+#luminosity=4626.8 # NEW CALCULATION -->
+luminosity=4922.0 
 
 
 #
@@ -58,10 +59,12 @@ if [ -z $1 ]; then
 fi
 
 
+# FIXME: Watch out with the 'isreduced' variable, so far it has sense just 
+#        for the WZ analysis
 
 autobin=""
 fakemode=""
-isreduced="-r"
+isreduced="-j DY,Z+Jets,Other"
 fakeasdata=""
 
 while getopts l:Ffah opt;
@@ -70,7 +73,7 @@ while getopts l:Ffah opt;
 			l)	luminosity=$OPTARG;;
 			a)	autobin="yes";;
 			F)	fakemode="-F";
-				isreduced="";;
+				isreduced="-j Other@TbarW_DR,TW_DR,WJets_Madgraph,WW";;
 			f) 	fakeasdata="yes";
 			        isreduced="";;
 			h)	help;
@@ -99,11 +102,11 @@ HISTOSGEN="fHGenFinalState fHGenFinalStateNoTaus fHGenWElectrons fHGenWMuons fHG
 fHGenPtLepton_1_0 fHGenPtLepton_2_0 fHGenPtLepton_3_0"
 HISTOSLEP="fHNRecoLeptons fHNSelectedLeptons"
 
-HISTOSNOC="fHEventsPerCut fHLeptonCharge fHNRecoLeptons fHNJets"
-HISTOS4B="fHMET fHTransversMass fHPtLepton1 fHPtLepton2 fHPtLepton3"
+HISTOSNOC="fHEventsPerCut fHLeptonCharge fHNRecoLeptons fHNJets fHNPrimaryVertices fHNPrimaryVerticesAfter3Leptons"
+HISTOS4B="fHMET fHTransversMass fHPtLepton1 fHPtLepton2 fHPtLepton3 fHEtaLepton1 fHEtaLepton2 fHEtaLepton3"
 if [ "$1" == "WZ" ];
 then
-	HISTOS4B="$HISTOS4B fHZInvMass fHZInvMassAfterZCand fHZInvMassAfterWCand fHMETAfterZCand fHMETAfterWCand fHdRl1Wcand fHdRl2Wcand"
+	HISTOS4B="$HISTOS4B fHZInvMass fHZInvMassAfterZCand fHZInvMassAfterWCand fHMETAfterZCand fHMETAfterWCand fHdRl1Wcand fHdRl2Wcand fHIsoLepton fHD0Lepton"
 	HISTOS8B=""
 	plotmode=0
 else
@@ -127,8 +130,10 @@ fi
 # Fakes comparation with MC mode
 if [ "X${fakeasdata}" == "Xyes" ];
 then
-	signal="Fakes"
+	signal="Fakes -d Fakes"
 	fakeasdata="-f"
+	isreduced="-j ZJets@Ztautau_Powheg,Zee_Powheg,Zmumu_Powheg,DYtautau_Powheg,DYee_Powheg,DYmumu_Powheg"
+
 fi
 
 
@@ -149,9 +154,9 @@ do
 	do
 		plothisto $i $rbinoption8 -s $signal -p $plotmode -l $luminosity $fakemode $fakeasdata
 	done;
-	printtable $signal $fakemode $isreduced -f table_$(basename `pwd`).html,table_$(basename `pwd`).tex;
+	printtable $signal $isreduced -f table_$(basename `pwd`).html,table_$(basename `pwd`).tex;
 	
-	tar czf PlotsTable_$(basename `pwd`).tar.gz Plots/ table_$(basename `pwd`).html table_$(basename `pwd`).tex
+	tar czf PlotsTable_$(basename `pwd`).tar.gz Plots/ table_$(basename `pwd`).html table_$(basename `pwd`)_large.html table_$(basename `pwd`).tex table_$(basename `pwd`)_large.tex
 	cd ..;
 done;
 

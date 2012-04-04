@@ -29,10 +29,19 @@ class ElecSelection : public CutManager
 {
 	friend class LeptonMixingSelection;
 
+	enum 
+	{
+		CUTBASED,           //cut based: using WPElecID class
+		BDTBASED,           //BDT type 
+		_nTYPE              //Internal use
+	};
+
 	public:
-		//! Constructor
+		//! Constructor for Cut based electrons
 		ElecSelection( TreeManager * data, const int & WPlowpt, const int & WPhighpt,
 				const int & nTights, const int & nLeptons);
+		//! Constructor for BDT electrons
+		ElecSelection( TreeManager * data, const int & nTights, const int & nLeptons);
 		//! Destructor
 		virtual ~ElecSelection();
 
@@ -69,10 +78,16 @@ class ElecSelection : public CutManager
 		bool IsPassDeltaRCut(const double & deltaRMuMu) const; 
 		bool IsInsideZWindow(const double & invariantMass) const; 
 		bool IsPassMETCut(const double & MET) const;
+		//! Check if pass the Cut-based Working Point selected
 		bool IsPassWP( const unsigned int & index ) const;
+		//! Check if pass the BDT Working Point selected
+		bool IsPassBDT( const unsigned int & index ) const;
 		
 		//! Syncronize lepton type with indices vector when fake mode active
 		virtual void SyncronizeLeptonType() { /* Not neeed for this concrete class */ }
+		
+		//! Update fakeables collection, taking into account the lepton type 
+		virtual bool WasAlreadyUpdated() { return false; }
 		
 		//! Select basic muons: 
 		//! - with pt > MinPt and fabs(eta) < eta 
@@ -90,9 +105,12 @@ class ElecSelection : public CutManager
 		virtual unsigned int SelectLooseLeptons();
 
 		//! Working Point for the pt > 20 Gev/c (highPt)
-		//  and pt < 20 GeV/c (lowPt)
+		//  and pt < 20 GeV/c (lowPt) in Cut-based electrons
 		WPElecID * pWP_lowPt;
 		WPElecID * pWP_highPt;
+
+		//!the electron type used: Cut-based or BDT
+		int _ElecType;
 
 		// The list of the selection chain codenames 
 		std::set<std::string> _codenames;

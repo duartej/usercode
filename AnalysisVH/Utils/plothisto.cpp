@@ -65,6 +65,10 @@ TString GetFile(const TString& d)
 	{
 		namefile.Replace(0,2, "WHToWW2L");
 	}
+	else if(d.Contains("WZ"))
+	{
+		namefile.Replace(0,2,"WZTo3LNu");
+	}
 	f.Form("cluster_%s/Results/%s.root",namefile.Data(),namefile.Data());
 	return f;
 }
@@ -385,8 +389,8 @@ void PlotAll(const common & cd ,
 	std::vector<int> colors;
 	colors.push_back(kRed+3);
 	colors.push_back(kGreen-3);
-	colors.push_back(kCyan-2);
 	colors.push_back(kAzure-7);
+	colors.push_back(kCyan-2);
 	colors.push_back(kOrange+5);
 	colors.push_back(kRed);
 	colors.push_back(kOrange+3);
@@ -582,7 +586,7 @@ void PlotAll(const common & cd ,
 	legend->Draw();
 	
 	gSystem->MakeDirectory("Plots");
-	canvas->SaveAs("Plots/"+histoname+".eps");
+	canvas->SaveAs("Plots/"+histoname+".pdf");
 	//canvas->SetLogy();
 	if( plottype != 2 )
 	{
@@ -653,7 +657,7 @@ void PlotAll(const common & cd ,
 		stats->Draw();
 	}
 
-	canvas->SaveAs("Plots/"+histoname+"_log.eps");
+	canvas->SaveAs("Plots/"+histoname+"_log.pdf");
 	canvas->SetLogy(0);
 	
 	//////
@@ -816,7 +820,7 @@ int main(int argc, char *argv[])
 	if( infakemode )
 	{
 		bkg.push_back("WW");
-		bkg.push_back("WJets_Madgraph");
+		//bkg.push_back("WJets_Madgraph");
 		bkg.push_back("Fakes");
 	}
 	else if( isfakeasdata )
@@ -849,7 +853,7 @@ int main(int argc, char *argv[])
 	if( infakemode )
 	{
 		blegend.push_back("WW");
-		blegend.push_back("W+Jets (MG)");
+		//blegend.push_back("W+Jets (MG)");
 		blegend.push_back("Fakes (PPF)");
 	}
 	else if( isfakeasdata )

@@ -549,7 +549,7 @@ class clustermanager(object):
 		lines += executable+" "+self.dataname+" -a "+self.analysistype+" -c "+self.cfgnames+\
 				" -d "+self.filedatanames+" -l "+self.finalstate+" -o "+outputname+"\n"
 		if self.fakeable:
-			lines = lines[:-1]+" -F "+self.nLeptons+","+self.nTights
+			lines = lines[:-1]+" -F "+self.nLeptons+","+self.nTights+"\n"
 	
 		filename = self.dataname+".sh"
 		f = open(filename,"w")
@@ -605,6 +605,10 @@ def showresults(textresultfiles):
 	cutorder = []
 	regexp = re.compile("(?P<total>\d+\.*\d*)\s*\[(?P<percent>\d*\W*\d*)\%\]\s*selected\sevents\s*\((?P<cutname>\w*)\)\s*")
 
+	# N muons and electrons no tight (in the Fake case)
+	nmuons = 0
+	nelecs = 0
+
 	for file in textresultfiles:
 		f = open(file)
 		lines = f.readlines()
@@ -612,6 +616,14 @@ def showresults(textresultfiles):
 			try:
 				total,percent,cutname = regexp.search(line).groups()
 			except AttributeError:
+				try:
+					nmuons += int(line.split("======= Number of no Tight Muons:")[-1].strip())
+				except ValueError:
+					pass
+				try:
+					nelecs += int(line.split("======= Number of no Tight Elecs:")[-1].strip())
+				except ValueError:
+					pass
 				continue
 			try:
 				totaldict[cutname] += float(total)
@@ -643,6 +655,11 @@ def showresults(textresultfiles):
 		formatstr = "%"+totalformat+" "+format+" selected events (%s)"
 
 		print formatstr % (totaldict[cut],percent,"%",cut)
+
+	print "---------------------------------"
+	print "N of muons and electrons no Tight (when proceed)"
+	print "nMuons = %d    nElecs = %d" % (nmuons,nelecs)
+	print "---------------------------------"
 
 
 

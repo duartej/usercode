@@ -53,22 +53,22 @@ std::map<std::string,std::vector<std::string> > getdatapathfiles(const char * ru
 
 	if( strcmp(runperiod,"2011A") == 0 )
 	{
-		runpath = "../"+production+"/Data7TeVRun2011A_newJEC_Reload";
+		runpath = "../"+production+"/Data7TeVRun2011A";
 		// O Quizas este --> runpath = "../"+production+"/Data7TeVRun2011A";
 		if( strcmp(finalstate,"mmm") == 0 )
 		{
 			// DoubleMuon
-			filenames.push_back("Tree_DoubleMuMay10_210.5");
-			filenames.push_back("Tree_DoubleMuV4_927.9");
-			filenames.push_back("Tree_DoubleMuAug5_334.4");
-			filenames.push_back("Tree_DoubleMuV6_662.9");
+			filenames.push_back("Tree_DoubleMuMay10_Latinos_211.4");
+			filenames.push_back("Tree_DoubleMuV4_Latinos_929.7");
+			filenames.push_back("Tree_DoubleMuAug5_Latinos_317.8");
+			filenames.push_back("Tree_DoubleMuV6_Latinos_658.9");
 		}
 		else if( strcmp(finalstate,"eee") == 0 )
 		{
-			filenames.push_back("Tree_DoubleElectronMay10_210.5");
-			filenames.push_back("Tree_DoubleElectronV4_927.9"); // OJO hay dos, lo hara el DM
-			filenames.push_back("Tree_DoubleElectronAug5_334.4"); 
-			filenames.push_back("Tree_DoubleElectronV6_662.9");
+			filenames.push_back("Tree_DoubleElectronMay10_Latinos_211.4");
+			filenames.push_back("Tree_DoubleElectronV4_Latinos_929.7"); // OJO hay dos, lo hara el DM
+			filenames.push_back("Tree_DoubleElectronAug5_Latinos_317.8"); 
+			filenames.push_back("Tree_DoubleElectronV6_Latinos_658.9");
 		}
 		else if( strcmp(finalstate,"mme") == 0  ) 
 		{
@@ -240,7 +240,6 @@ const std::vector<TString> * extractdatafiles(TString dataName, const char * run
 		if (dataName.Contains("WH")) 
 		{
 			folder = "HWW Fall11 Latinos";
-			//folder = "HWW Summer11 Latinos";
 			skim = "/";
 			dataName.Replace(0,2, "WHToWW2L");
 		}
@@ -349,7 +348,8 @@ void display_usage()
 	std::cout << "    Z + Jets Madgraph: ZJets_Madgraph" << std::endl;
 	std::cout << "    Z + Jets Powheg:   DYee_Powheg DYmumu_Powheg Dytautau_Powheg Zee_Powheg Zmumu_Powheg Ztautau_Powheg" << std::endl;
 	std::cout << "    Zbb + Jets:        Zbb" << std::endl;
-	std::cout << "    Other backgrounds: WZ ZZ WW TTbar_Madgraph WJets_Madgraph TW TbarW Fakes" << std::endl;
+	std::cout << "    Other backgrounds: -WZ --> PYTHIA SAMPLE TO BE DEPRECATED-" 
+		<<   "                       WZTo3LNu ZZ WW TTbar_Madgraph WJets_Madgraph TW TbarW Fakes" << std::endl;
 }
 
 int main(int argc, char *argv[])
@@ -448,7 +448,8 @@ int main(int argc, char *argv[])
 	// Zbb+jets
 	knowndata.insert("Zbb");
 	// Other background
-	knowndata.insert("WZ"); // WZTo3LNu ??? Mejor este
+	// knowndata.insert("WZ"); --> Pythia sample to be deprecated
+	knowndata.insert("WZTo3LNu");
 	knowndata.insert("ZZ");
 	knowndata.insert("WW");
 	knowndata.insert("TTbar_Madgraph");
@@ -485,12 +486,6 @@ int main(int argc, char *argv[])
 			dummy = 0;
 			wasprocessed = true;
 		}
-//		else
-//		{
-//			std::cerr << "\033[1;31mdatamanagercreator ERROR\033[1;m: Could not find dataset '" 
-//				<< *it << "'. Is it a valid name? " << std::endl;
-//			exit(-1);
-//		}
 	}
 
 	if( ! wasprocessed )

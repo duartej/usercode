@@ -13,9 +13,12 @@
 #include "LeptonTypes.h"
 #include "SignatureFS.h"
 #include "FOManager.h"
+#include "WManager.h"
 
 #include "TString.h"
 #include "TLorentzVector.h"
+// FIXME: PROVISONAL
+#include "TH2F.h"
 
 
 class InputParameters;
@@ -24,7 +27,7 @@ class TTree;
 class CutManager;
 class TH1D;
 class FOManager;
-
+class WManager;
 
 
 
@@ -95,10 +98,11 @@ class AnalysisBase : public CMSAnalysisSelector
 		//! For histograms: Must be common all analysis
 		enum 
 		{
-			fHProcess,                //Process ID
-			fHEventsPerCut,           //Events passing every cut
-			fHEventsPerCut3Lepton,    //Events passing every cut that are 3 lepton from gen
-			fHNPrimaryVertices,       //Number of primary vertices
+			fHProcess,                      //Process ID
+			fHEventsPerCut,                 //Events passing every cut
+			fHEventsPerCut3Lepton,          //Events passing every cut that are 3 lepton from gen
+			fHNPrimaryVertices,             //Number of primary vertices just after be PU-weighted 
+			fHNPrimaryVerticesAfter3Leptons,//Idem but after exactly NLeptons cut
 			nextenumerate
 
 		};
@@ -184,6 +188,11 @@ class AnalysisBase : public CMSAnalysisSelector
 
 		// Fakeable object manager, if it is needed...
 		FOManager * fFO;
+		// Fake Rate weights
+		//WManager * fFO;
+
+		// Scale factors
+		WManager * fSF;
 
 		// Tree containing the last cut used in a given event
 		TTree * _cuttree;
@@ -204,10 +213,14 @@ class AnalysisBase : public CMSAnalysisSelector
 
 		// -- Histograms
 		std::map<int,TH1D*> _histos;
-		
+
 		// -- It is was stored the ouput
 		bool fWasStored;
 
+		// FIXME: Provisional
+		TH2F * fHPTETA_NOTIGHTS;
+		TH2F * fHPTETA_NOTIGHTS_WEIGHTED;
+		
 
 	public:
 		ClassDef(AnalysisBase,0);

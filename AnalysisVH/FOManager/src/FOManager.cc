@@ -30,13 +30,19 @@ FOManager::FOManager()
 		exit(-1);
 	}
 
+	// FIXME : No harcodear los systematicos....
+	// NOMINAL
 	std::string mufile(std::string(pkgpath)+"/FOManager/data/MuFR_All2011_LPcuts_AND_kink_jet15.root");
 	std::string elecfile(std::string(pkgpath)+"/FOManager/data/ElecFR_all2011_jet35.root");
+	// SYSTEMATICS
+	//std::string mufile(std::string(pkgpath)+"/FOManager/data/MuFR_All2011_LPcuts_AND_kink_jet30.root");
+	//std::string elecfile(std::string(pkgpath)+"/FOManager/data/ElecFR_all2011_jet15.root");
+	// SYSTEMATICS
+	//std::string mufile(std::string(pkgpath)+"/FOManager/data/MuFR_All2011_LPcuts_AND_kink_jet30.root");
+	//std::string elecfile(std::string(pkgpath)+"/FOManager/data/ElecFR_all2011_jet50.root");
 
 	this->SetFR(MUON,mufile.c_str());
 	this->SetFR(ELECTRON,elecfile.c_str());
-
-
 }
 
 FOManager::~FOManager()
@@ -152,7 +158,9 @@ const double FOManager::GetWeight(const LeptonTypes & lt, const double & pt, con
 			<< " fake rate histogram!" << std::endl;
 		exit(-1);
 	}
-	
+	// FIXME: NECESITO rectificar en el caso de muones: el bin de pt>40 es malo, mejor
+	// coge el valor del bin anterior
+
 	int bin = _fakerate[lt]->FindBin(pt,fabs(eta));
 	double f = _fakerate[lt]->GetBinContent(bin);
 	
@@ -160,4 +168,16 @@ const double FOManager::GetWeight(const LeptonTypes & lt, const double & pt, con
 	return f/(1.0-f);
 }
 
-	
+// Just return the TH2F maps filled with 1
+TH2F * FOManager::GetFakeMapTemplate(const LeptonTypes & lt)
+{
+	TH2F * h = 0;
+	if( _fakerate[lt] != 0 )
+	{
+		h = (TH2F*)_fakerate[lt]->Clone("fHPTETA_CLONE");
+		h->Divide(_fakerate[lt]);
+	}
+
+	return h;
+}
+
