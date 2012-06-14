@@ -1,6 +1,17 @@
 #!/usr/bin/env python
 
 
+# Fancy name to the samples. The dictionary is built in run-time. Whenever a sample is not
+# defined here, the fancy will be the same as the default one
+TITLEDICT = { "Fakes": "Data-driven bkg", 
+		"Other": "Other bkg", 
+		"WZTo3LNu": "WZ#rightarrow3l#nu", 
+		"PhotonVJets_Madgraph": "V#gamma+Jets",
+		"VGamma": "V#gamma"
+	    }
+ORDERCOLUMNS = [ "Fakes", "ZZ", "Other" ]
+
+
 class format(object):
 	"""
 	"""
@@ -58,7 +69,7 @@ class format(object):
 			self.exponentend    = '</sup>'
 			self.cdot = '&middot;'
 		else:
-			raise "\033[1;31mformat ERROR\033[1;m Format "+format+\
+			raise "\033[31mformat ERROR\033[m Format "+format+\
 					" not implemented"
 
 		self.format = format
@@ -88,10 +99,10 @@ class column(object):
 		self.title = None
 		wildcardfiles = "*.root" # Per default in the current working directory
 		for key,value in keywords.iteritems():
-			if not key in keywords.keys():
-				message  = "\033[1;31mcolumn ERROR\033 Incorrect instantiation of 'column'"
+			if not key in validkeywords:
+				message  = "\033[31;1mcolumn ERROR\033[m Incorrect instantiation of 'column'"
 				message += " class. Valid keywords are: "+str(validkeywords)
-				raise message
+				raise RuntimeError(message)
 			if key == 'title':
 				self.title = value
 			if key == 'nobuilt':
@@ -111,6 +122,7 @@ class column(object):
 		# Extract the values and stores to a dict
 		self.rowvaldict = self.__builddict__()
 
+
 	def __builddict__(self):
 		"""..method: __builddict__() -> { 'cutname1': (val,err), ... } 
 		This could be a pure virtual, in order to be used by anyone
@@ -126,7 +138,7 @@ class column(object):
 		# Including the luminosity, efficiency weights,,...
 		if "Data.root" in self.filename:
 			weight = 1.0
-		elif "Fakes.root" in self.filename:
+		elif "Fakes.root" in self.filename and not "_Fakes.root" in self.filename:
 			weight = 1.0
 		else:
 			# 1) Load the InputParameters
@@ -248,9 +260,11 @@ class table(object):
 		import glob
 		import ROOT
 		import os
+		global TITLEDICT
+
 		# First checkings:
 		if not os.getenv("VHSYS"):
-			raise "\033[1;31mtable ERROR\033[1;m Initialize your"+\
+			raise "\033[31mtable ERROR\033[m Initialize your"+\
 					" environment (VHSYS env variable needed)"
 
 		formatprov = None
@@ -261,7 +275,7 @@ class table(object):
 		self.usermetasample = {}
 		for key,value in keywords.iteritems():
 			if not key in keywords.keys():
-				message  = "\033[1;31mtable ERROR\033 Incorrect instantiation of 'table'"
+				message  = "\033[31mtable ERROR\033[m Incorrect instantiation of 'table'"
 				message += " class. Valid keywords are: "+str(validkeywords)
 				raise message
 
@@ -273,13 +287,17 @@ class table(object):
 			elif key == "wildcardfiles":
 				wildcardfiles = value
 			elif key == "join":
-				if type(value) == list:
+				if type(value) == list and len(value) == 0:
+					# we don't want to smash the join list
+					pass
+				elif type(value) == list:
 					join = value
 				elif type(value) == dict:
 					self.usermetasample = value
 					join = self.usermetasample.keys()
 				else:
-					join = [ value ]
+					join.append(value)
+
 
 		# available filenames
 		self.filenames = glob.glob(wildcardfiles)
@@ -298,41 +316,60 @@ class table(object):
 		else:
 			# Added the important cuts to be used in the reduced table case
 			# FIXME WARNING HARDCODED!! --> THis is a temporal patch...
-			self.importantcutsdict = { 'Pre-selection' : 'AtLeast3Leptons',
+			self.importantcutsdict = { 'Pre-selection' : 'Exactly3Leptons',
 					'Z' : 'HasZCandidate',  'W': 'MET' }
 			self.importantcutslist = [ 'Pre-selection', 'Z', 'W' ]
 
 		# building the columns
 		self.columns = {}
 		for f in self.filenames:
+			naturalname = os.path.basename(f).split(".")[0]
+			# Putting the fancy name if has to, or using the
+			# per default name (so updating the TITLEDICT global)
+			try:
+				coltitle = TITLEDICT[naturalname]
+			except KeyError:
+				TITLEDICT[naturalname] = naturalname
 			col = column(f)
 			self.columns[col.title] = col
 		
 		# samples names
 		self.samples = self.columns.keys()
 		# Check the signal and data are there
-		if not signal in self.samples:
-			raise "\033[1;31mtable ERROR\033[1;m The signal introduced '"+signal+"' has not been found."+\
+		if not signal in self.samples+join:
+			raise RuntimeError("\033[31mtable ERROR\033[m The signal introduced '"\
+					+signal+"' has not been found."+\
 					" Check you have not introduced the '-n' option without quotes:\n"+\
-					" printtable "+signal+" -n \"whatever*..\"" 
-		if not data in self.samples:
-			raise "\033[1;31mtable ERROR\033[1;m The data introduced '"+data+"' has not been found."+\
+					" printtable "+signal+" -n \"whatever*..\"")
+		if not data in self.samples+join:
+			raise RuntimeError("\033[31mtable ERROR\033[m The data introduced '"\
+					+data+"' has not been found."+\
 					" Check you have not introduced the '-n' option without quotes:\n"+\
-					" printtable "+signal+" -n \"whatever*..\"" 
+					" printtable "+signal+" -n \"whatever*..\"")
 
 		self.signal = signal
 		self.data   = data
 
 		# Ordered samples names (column names)
 		self.columntitles = []
+		# Backgrounds ordered first
+		self.columntitles = filter(lambda x: x in self.samples+join, ORDERCOLUMNS)
 		for i in self.samples:
+			# Already took into account
+			if i in self.columntitles:
+				continue
+			# Signal and data will be put after
 			if i == self.signal or i == self.data:
 				continue
 			self.columntitles.append(i)
+		# -- Adding the other columns
 		self.columntitles.append( "TotBkg" )
 		self.columntitles.append( self.data )
-		self.columntitles.append( "Nobs-Nbkg" )
+		self.columntitles.append( "Data-TotBkg" )
 		self.columntitles.append( self.signal )
+		# -- Avoiding repetition (mainly for  DDD-DDM case)
+		dummy = map(lambda x: self.columntitles.remove(x),
+				set(filter(lambda x: self.columntitles.count(x) > 1, self.columntitles)))
 
 		# The datamember samples is superceeded by columntitles
 		self.samples = self.columntitles
@@ -342,19 +379,34 @@ class table(object):
 			samplestodelete = []
 			self.columns[metasample] = column("",nobuilt=True)
 			for sample in self.getsamplecomponents(metasample):
-				self.columns[metasample] += self.columns[sample]
-				samplestodelete.append( sample )
+				try:
+					self.columns[metasample] += self.columns[sample]
+					samplestodelete.append( sample )
+				except KeyError:
+					# Protecting the case where the pre-defined
+					# samples aren't there (for instance WJets_Madgraph
+					# in the 'Other' metasample)
+					pass
+			# See if we have any of the samples to merge, if not then 
+			# it has no sense going on
+			if len(samplestodelete) == 0:
+				# Do not incorporate the metasample to the table
+				self.columns.pop(metasample)
+				# And do nothing else
+				continue
 			# Put the title
 			self.columns[metasample].title = metasample
+			# Incorporates the metasample to the global TITLEDICT
+			TITLEDICT[metasample] = metasample
 			# Erase the samples merged 
-			for i in xrange(len(samplestodelete)-1):
-				self.columns.pop(samplestodelete[i])
-				self.columntitles.remove(samplestodelete[i])
-			self.columns.pop(samplestodelete[-1])
-			# And substitute the last sample by the metasample
-			indexlast = self.columntitles.index(samplestodelete[-1])
-			self.columntitles[indexlast] = metasample
+			for s2remove in samplestodelete:
+				self.columns.pop(s2remove)
+				index=self.columntitles.index(s2remove)
+				self.columntitles.remove(s2remove)
 
+			# And add to the columntitles data member if not in there
+			if not metasample in self.columntitles:
+				self.columntitles.insert(index,metasample)
 
 		# format specific
 		self.format = format()
@@ -378,12 +430,16 @@ class table(object):
 			components = [ "DYee_Powheg", "DYmumu_Powheg", "DYtautau_Powheg" ]
 		elif metasample == "Z+Jets":
 			components = [ "Zee_Powheg", "Zmumu_Powheg", "Ztautau_Powheg" ]
+		elif metasample == "VGamma":
+			components = [ "ZgammaToElElMad", "ZgammaToMuMuMad", "ZgammaToTauTauMad",\
+					"WgammaToElNuMad", "WgammaToMuNuMad", "WgammaToTauNuMad" ]
 		elif metasample == "Other":
-			components = [ "TbarW_DR", "TW_DR", "WW", "WJets_Madgraph" ]
+			#components = [ "TbarW_DR", "TW_DR", "WW", "WJets_Madgraph" ]
+			components = [ "WW", "WJets_Madgraph" ]
 		elif metasample in self.usermetasample.keys():
 			components = self.usermetasample[metasample]
 		else:
-			message  = "\033[1;31mgetsamplecomponents ERROR\033[1;m '"+metasample+"'" 
+			message  = "\033[31mgetsamplecomponents ERROR\033[m '"+metasample+"'" 
 			message += " not recognized. Current valid metasamples are:"
 			message += " 'DY' 'Z+Jets' 'Other' and user introduced '"
 			message += str(self.usermetasample.keys())+"'"
@@ -415,32 +471,33 @@ class table(object):
 		"""
 		# FIXME: TO BE MODIFIED: IT NEEDS SOME IMPROVEMENTS (THERE ARE MINOR BUGS)
 		from math import sqrt
-	
+
 		# Dealing with the TotBkg sample which has to be built 
 		if sample == "TotBkg":
 			val = 0.0
 			err2 = 0.0
-			for s in filter(lambda x: x != self.data and x != self.signal and x != "TotBkg" and x != "Nobs-Nbkg",self.samples):
+			for s in filter(lambda x: x != self.data and x != self.signal and x != "TotBkg" and x != "Data-TotBkg",self.samples):
 				(v,e) = self.columns[s].getvalerr(cut)
 				val += v
 				err2 += e**2.0
-				err = sqrt(err2)
-				try:
-					self.columns["TotBkg"].rowvaldict[cut] = (val,err)
-				except KeyError:
-					# Creating the column
-					self.columns["TotBkg"] = column("",nobuilt=True)
-					# Inititalizing dict
-					self.columns["TotBkg"].rowvaldict= { cut: (val,err) }
+			err = sqrt(err2)
+			try:
+				self.columns["TotBkg"].rowvaldict[cut] = (val,err)
+			except KeyError:
+				# Creating the column
+				self.columns["TotBkg"] = column("",nobuilt=True)
+				# Inititalizing dict and all the other needed data members
+				self.columns["TotBkg"].rowvaldict= { cut: (val,err) }
+				self.columns["TotBkg"].cutordered = self.columns[self.data].cutordered
 
 		# extracting the values
 		try:
 			val,err=self.columns[sample].getvalerr(cut)
 		except KeyError:
 			# It's substraction data - TotBkg columns
-			if sample == "Nobs-Nbkg":
+			if sample == "Data-TotBkg":
 				# Note that as it has been extract by order, Data and total background
-				(valdata,errdata) = self.columns["Data"].getvalerr(cut)
+				(valdata,errdata) = self.columns[self.data].getvalerr(cut)
 				(valbkg,errbkg)   = self.columns["TotBkg"].getvalerr(cut)
 				val = valdata-valbkg
 				err = sqrt(errdata**2.0+errbkg**2.0)
@@ -545,7 +602,12 @@ class table(object):
 		# Column titles
 		lines += self.format.rowstart+self.format.cellrowitstart+"      Cuts "+self.format.cellrowitend
 		for s in self.columntitles:
-			lines += self.format.cellcolitstart+s+self.format.cellcolitend
+			fancyname = s
+			try:
+				fancyname = TITLEDICT[s]
+			except KeyError:
+				pass
+			lines += self.format.cellcolitstart+fancyname+self.format.cellcolitend
 		lines += self.format.rowend+" \n"
 		#Content 
 		# Extract the maximum lenght of the cuts
@@ -570,7 +632,7 @@ class table(object):
 		"""
 		ncolumns = 4
 		self.format.setformat(format,ncolumns)
-
+		
 		lines = self.format.tablestart+"\n"
 		# Column titles
 		lines += self.format.rowstart+self.format.cellrowitstart+"       "+self.format.cellrowitend
@@ -578,13 +640,19 @@ class table(object):
 			lines += self.format.cellcolitstart+s+self.format.cellcolitend
 		lines += self.format.rowend+" \n"
 		# Content
+		fancycolumntitles = []
+		for sample in self.columntitles:
+			try:
+				fancycolumntitles.append( TITLEDICT[sample] )
+			except KeyError:
+				fancycolumntitles.append(sample)
 		# Extract the maximum lenght of the samples
-		maxlenght = str(max(map(lambda x: len(x),self.columntitles)))
+		maxlenght = str(max(map(lambda x: len(x),fancycolumntitles)))
 		sampleformat = "%"+maxlenght+"s"
 		# Build the table row by row (sample by sample)
-		for sample in self.columntitles:
+		for sample,fancyname in zip(self.columntitles,fancycolumntitles):
 			lines += self.format.rowstart+self.format.cellrowitstart
-			lines += sampleformat % sample
+			lines += sampleformat % fancyname
 			lines += self.format.cellrowitend
 			for cut in self.importantcutslist:
 				realcut = self.importantcutsdict[cut]
@@ -622,10 +690,10 @@ if __name__ == '__main__':
 	#Comprobando la version (minimo 2.4)
 	vX,vY,vZ,_t,_t1 = sys.version_info
 	if vX > 2 and vY < 4:
-		message = '\033[1;31printtable ERROR\033[1;m I need python version >= 2.4'
+		message = '\033[31printtable ERROR\033[m I need python version >= 2.4'
 		sys.exit( message )
 	elif vX < 2:
-		message = '\033[1;31printtable ERROR\033[1;m I need python version >= 2.4'
+		message = '\033[31printtable ERROR\033[m I need python version >= 2.4'
 		sys.exit( message )
 	
 	usage  ="usage: printtable <WZ|WHnnn|Fakes> [options]"
@@ -637,7 +705,7 @@ if __name__ == '__main__':
 			" into one. Shortcut for '-j [DY,Z+Jetsj,Other]" )
 	parser.add_option( '-d', action='store', dest='dataname', help='Name of the sample to be used in the role of "data" [Default: Data]')
 	parser.add_option( '-n', action='store', dest='wildcardfiles', help='Path where to find the root '\
-			'filenames to extract the table, it could be wildcards. \033[1;33mWARNING:\033[1;m'\
+			'filenames to extract the table, it could be wildcards. \033[33mWARNING:\033[m'\
 			' if uses wildcards, be sure to be included between quotes: "whatever*"'\
 			' [Default: "cluster_*/Results/*.root"]')
 	parser.add_option( '-j', action='store', dest='join', metavar="MS|MS1,MS2,...|MS1@S1,..,SN::MS2@S2_1,...,S2_2::...", \
@@ -645,12 +713,17 @@ if __name__ == '__main__':
 			' it could be a str defining a pre-built metasample: "DY" "Z+Jets" "Other";'\
 			' it could be a list of strings comma separated which are defining more than one pre-built'\
 			' metasample; or could be metasample names and a list of samples')
+	parser.add_option( '-a', "--addname", action='store', dest='samplenames', 
+			metavar="newname1@oldname1[,newname2@oldname2,...]",
+			help='Change the name which a sample'\
+			' will be put in the table. The standard notation comes from "SAMPLENAME_datanames.dn", so to'\
+			' modify this behaviour you can use that option"')
 
 
 	( opt, args ) = parser.parse_args()
 
 	if len(args) == 0 :
-		message = "\033[1;31mprinttable ERROR\033[1;m Missing mandatory argument signal, see usage."
+		message = "\033[31mprinttable ERROR\033[m Missing mandatory argument signal, see usage."
 		sys.exit(message)
 	signal = args[0]
 
@@ -676,8 +749,22 @@ if __name__ == '__main__':
 	else:
 		join = []
 
+	# If the user wants to incorporate some names 
+	if opt.samplenames:
+		message = "\033[31mprinttable ERROR\033[m Malformed arguments on option"
+		message += " '-a','--addname'. See the help"
+		dosomething=False
+		for oldnew in opt.samplenames.split(","):
+			oldnew_list =oldnew.split("@")
+			if len(oldnew_list) != 2:
+				sys.exit(message)
+			TITLEDICT[oldnew_list[1]]=oldnew_list[0]
+			dosomething=True
+		if not dosomething:
+			sys.exit(message)
 
-	print "\033[1;34mprinttable INFO\033[1;m Creating yields table for "+signal+" analysis",
+
+	print "\033[34mprinttable INFO\033[m Creating yields table for "+signal+" analysis",
 	sys.stdout.flush()
 	t = table(opt.dataname,signal,isreduced=opt.isreduced,wildcardfiles=opt.wildcardfiles,join=join)
 	print "( ",

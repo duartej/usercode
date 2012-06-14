@@ -158,9 +158,9 @@ void AnalysisWZ::Initialise()
 	_histos[fHLeptonCharge] = CreateH1D("fHLeptonCharge", "#Sum q_{#mu}", 7, -3.5, 3.5);
 		
 	// Invariant mass of leptons in/out of Z peak after all cuts
-	_histos[fHZInvMass] = CreateH1D("fHZInvMass", "M^{inv.}_{#mu#mu}",120, 60, 120);
-	_histos[fHZInvMassAfterZCand] = CreateH1D("fHZInvMassAfterZCand", "M^{inv.}_{#mu#mu}",120, 60, 120);
-	_histos[fHZInvMassAfterWCand] = CreateH1D("fHZInvMassAfterWCand", "M^{inv.}_{#mu#mu}",120, 60, 120);
+	_histos[fHZInvMass] = CreateH1D("fHZInvMass", "M^{inv.}_{#mu#mu}",80, 71, 111);
+	_histos[fHZInvMassAfterZCand] = CreateH1D("fHZInvMassAfterZCand", "M^{inv.}_{#mu#mu}",80, 71, 111);
+	_histos[fHZInvMassAfterWCand] = CreateH1D("fHZInvMassAfterWCand", "M^{inv.}_{#mu#mu}",80, 71, 111);
 	
 	// Missing ET after inv mass cut
 	_histos[fHMET] = CreateH1D("fHMET", "MET",120, 0, 300);
@@ -203,15 +203,16 @@ void AnalysisWZ::Initialise()
 		delete hprov;
 	}*/
 
-	_histos[fHIsoLepton] = CreateH1D("fHIsoLepton","#sum Iso_{total}/p_{t}",100,0,0.4);
-	_histos[fHD0Lepton] = CreateH1D("fHD0Lepton","d_{0}",100,0,0.2);
+	//_histos[fHIsoLepton] = CreateH1D("fHIsoLepton","#sum Iso_{total}/p_{t}",100,0,0.4);
+	//_histos[fHD0Lepton] = CreateH1D("fHD0Lepton","d_{0}",100,0,0.2);
+	//_histos[fHEtJetnoTightLepton] = CreateH1D("fHEtJetnoTightLepton","Jet E_{T}",200,0,100);
 	
 }
 
 //---------------------------------------------------------------------
 // InsideLoop
 //---------------------------------------------------------------------
-unsigned int AnalysisWZ::InsideLoop()
+std::pair<unsigned int,float> AnalysisWZ::InsideLoop()
 {
 #ifdef DEBUGANALYSIS
 	std::cout << "========================================================" << std::endl;
@@ -231,13 +232,104 @@ unsigned int AnalysisWZ::InsideLoop()
 
 	// Generation studies
 	//----------------------------------------------------------------------
-	unsigned int fsTaus = SignatureFS::_iFSunknown;
+	//unsigned int fsTaus = SignatureFS::_iFSunknown;
 	unsigned int fsNTau = SignatureFS::_iFSunknown;
 	fNGenElectrons = 0; //Number of generated electrons from W or tau
 	fNGenMuons = 0;     //Number of generated muons from W or tau
 	fNGenLeptons = 0;   //Number of generated leptons from W or tau
-	if(fIsWH) 
+	if(fDataName.Contains("WZ")) // fIsWH --> Cambiar por fIsSignal) 
 	{
+		float masszcand = 0.0;
+		// Finding the events generated between 71-111 GeV/c
+		// --- 
+		// Tau case: (the Latino's tree doesn't have the MC information)
+		const unsigned int ntauSt3 = fData->GetSize<int>("T_Gen_TauSt3_PID");
+		const unsigned int nmuonSt3 = fData->GetSize<int>("T_Gen_MuonSt3_PID");
+		const unsigned int nelecSt3 = fData->GetSize<int>("T_Gen_ElecSt3_PID");
+		if( ntauSt3 >= 2 )
+		{
+			std::vector<std::pair<int,TLorentzVector> > precand;
+			for(unsigned int i = 0; i < ntauSt3; ++i)
+			{
+				precand.push_back(std::pair<int,TLorentzVector>(
+							fData->Get<int>("T_Gen_TauSt3_PID",i),
+							 TLorentzVector(fData->Get<float>("T_Gen_TauSt3_Px",i),
+								 fData->Get<float>("T_Gen_TauSt3_Py",i),
+								 fData->Get<float>("T_Gen_TauSt3_Pz",i),
+								 fData->Get<float>("T_Gen_TauSt3_Energy",i))
+							));
+			}
+			
+			// Construct the Z candidate, because the Latino's tree
+			// do not have the MC generation info
+			for(unsigned int j = 0; j < precand.size(); ++j)
+			{
+				for(unsigned int i = j+1; i < precand.size(); ++i)
+				{
+					if( precand[j].first/precand[i].first == 1 )
+					{
+						// same sign, avoiding it ...
+						continue;
+					}
+					float thismass =  (precand[j].second+precand[i].second).M();
+					
+					if( fabs(masszcand-kZMass) > (thismass-kZMass) )
+					{
+						masszcand = thismass;
+					}
+				}
+			}
+			
+		}
+		// Muon and elec case:
+		else if( nmuonSt3 >= 2 )
+		{
+			std::vector<TLorentzVector> zcand;
+			for(unsigned int i = 0; i < nmuonSt3; ++i)
+			{
+				if( abs(fData->Get<int>("T_Gen_Muon_MPID",i)) == 23 ) // PID Z==23
+				{
+					zcand.push_back( TLorentzVector(fData->Get<float>("T_Gen_Muon_Px",i),
+								fData->Get<float>("T_Gen_Muon_Py",i),
+								fData->Get<float>("T_Gen_Muon_Pz",i),
+								fData->Get<float>("T_Gen_Muon_Energy",i)) );
+				}
+			}
+			
+			if( zcand.size() == 2 )
+			{
+				TLorentzVector prov(zcand[0]+zcand[1]);
+				masszcand = prov.M();
+			}
+		}
+		else if( nelecSt3 >= 2 )
+		{
+			std::vector<TLorentzVector> zcand;
+			for(unsigned int i = 0; i < nelecSt3; ++i)
+			{
+				if( abs(fData->Get<int>("T_Gen_Elec_MPID",i)) == 23 )
+				{
+					zcand.push_back( TLorentzVector(fData->Get<float>("T_Gen_Elec_Px",i),
+								fData->Get<float>("T_Gen_Elec_Py",i),
+								fData->Get<float>("T_Gen_Elec_Pz",i),
+								fData->Get<float>("T_Gen_Elec_Energy",i)) );
+				}
+			}
+			
+			if( zcand.size() == 2 )
+			{
+				TLorentzVector prov(zcand[0]+zcand[1]);
+				masszcand = prov.M();
+			}
+		}
+
+		// Accepting only generated events inside the range
+		if( masszcand < 71.0 || masszcand > 111.0 )
+		{
+			return std::pair<unsigned int,float>(WZCuts::_iIsWZ,puw);
+		}
+	}
+	/*{
 		// + Classify by leptonic final state (taus undecayed)
 		unsigned int nelecsfromW = fData->GetSize<int>("T_Gen_ElecSt3_PID");
 		unsigned int nmusfromW = fData->GetSize<int>("T_Gen_MuonSt3_PID");
@@ -430,7 +522,7 @@ unsigned int AnalysisWZ::InsideLoop()
 #endif
 			FillGenPlots(WZCuts::_iAllEvents,puw);
 		}
-	}
+	}*/
 	
 	// All events
 	//------------------------------------------------------------------
@@ -439,7 +531,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	// Proccess ID
 	//------------------------------------------------------------------
 	int procn = _iOther;
-	const int processID = fData->Get<int>("T_Event_processID");//GetEventprocessID();
+	const int processID = fData->Get<int>("T_Event_processID");
 	if(processID >= 0 && processID <= 4)  //ZJets
 	{
 		procn = _iVarious;
@@ -476,7 +568,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	//------------------------------------------------------------------
 	if( ! IspassHLT() )
 	{
-		return WZCuts::_iHLT;
+		return std::pair<unsigned int,float>(WZCuts::_iHLT,puw);
 	}
 	FillHistoPerCut(WZCuts::_iHLT, puw, fsNTau);
 
@@ -496,7 +588,7 @@ unsigned int AnalysisWZ::InsideLoop()
 
 	if( ! fLeptonSelection->IspassAtLeastN(kNMuons,nSelectedMuons) )
 	{
-		return WZCuts::_iHas2Leptons;
+		return std::pair<unsigned int,float>(WZCuts::_iHas2Leptons,puw);
 	}
 	
 	FillHistoPerCut(WZCuts::_iHas2Leptons, puw, fsNTau);
@@ -508,7 +600,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	
 	if( ! fLeptonSelection->IspassAtLeastN(kNMuons,nSelectedPVMuons) )
 	{
-		return WZCuts::_iHas2PVLeptons;
+		return std::pair<unsigned int,float>(WZCuts::_iHas2PVLeptons,puw);
 	}
 
 	FillHistoPerCut(WZCuts::_iHas2PVLeptons, puw, fsNTau);
@@ -521,9 +613,8 @@ unsigned int AnalysisWZ::InsideLoop()
 	
 	if( ! fLeptonSelection->IspassAtLeastN(kNMuons,nSelectedIsoMuons) )
 	{
-		return WZCuts::_iHas2IsoLeptons;
-	}
-	
+		return std::pair<unsigned int,float>(WZCuts::_iHas2IsoLeptons,puw);
+	}	
 	FillHistoPerCut(WZCuts::_iHas2IsoLeptons, puw, fsNTau);
 	
 	// (4) Isolated good muons: Identification (tight + notight)
@@ -536,7 +627,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	// second argument are the number of  tight leptons
 	if( kNMuons > nSelectedIsoGoodMuons )
 	{
-		return WZCuts::_iHas2IsoGoodLeptons;
+		return std::pair<unsigned int,float>(WZCuts::_iHas2IsoGoodLeptons,puw);
 	}
 	
 	FillHistoPerCut(WZCuts::_iHas2IsoGoodLeptons, puw, fsNTau);	
@@ -551,25 +642,25 @@ unsigned int AnalysisWZ::InsideLoop()
 	{
 		const unsigned int i = (*theLeptons)[k];
 		LeptonTypes ileptontype = fLeptonSelection->GetLeptonType(k);
-		std::string lepton;
-		std::string laux;
+		//std::string lepton;
+		//std::string laux;
 		if( ileptontype == MUON )
 		{
-			lepton = "Muon";
-			laux = "_mu";
+		//	lepton = "Muon";
+		//	laux = "_mu";
 			++howmanyMuons;
 		}
 		else
 		{
-			lepton = "Elec";
-			laux = "_ele";
+		//	lepton = "Elec";
+		//	laux = "_ele";
 			++howmanyElecs;
 		}
-		TLorentzVector lvec = this->GetTLorentzVector(lepton.c_str(),i);
-		std::string Isostr("T_"+lepton+laux+"SmurfPF");
-		std::string IPstr("T_"+lepton+"_IP2DBiasedPV");
-		_histos[fHIsoLepton]->Fill(fData->Get<float>(Isostr.c_str(),i)/lvec.Pt(),puw);
-		_histos[fHD0Lepton]->Fill(fData->Get<float>(IPstr.c_str(),i),puw);
+		//TLorentzVector lvec = this->GetTLorentzVector(lepton.c_str(),i);
+		//std::string Isostr("T_"+lepton+laux+"SmurfPF");
+		//std::string IPstr("T_"+lepton+"_IP2DBiasedPV");
+		//_histos[fHIsoLepton]->Fill(fData->Get<float>(Isostr.c_str(),i)/lvec.Pt(),puw);
+		//_histos[fHD0Lepton]->Fill(fData->Get<float>(IPstr.c_str(),i),puw);
 	}
 	
 	//The signature has to be fulfilled
@@ -580,13 +671,34 @@ unsigned int AnalysisWZ::InsideLoop()
 	{
 		fulfillSignature = true;
 	}
+	// We want at least one of the 2 same flavor leptons a pt higher than the 
+	// trigger threshold
+	const double triggerthreshold = 20.0;
+	bool passtriggerthresholdpt = false;
+	for(unsigned int k=0; k < theLeptons->size();++k)
+	{
+		const unsigned int i = (*theLeptons)[k];
+		LeptonTypes ileptontype = fLeptonSelection->GetLeptonType(k);
+		double pt = 0.0;
+		if( nMuonsNeeded >= 2 && ileptontype == MUON )
+		{
+			pt = fData->Get<float>("T_Muon_Pt",i);
+			passtriggerthresholdpt = ( pt > triggerthreshold );
+			break;
+		}
+		else if( nElecsNeeded >= 2 && ileptontype == ELECTRON )
+		{
+			pt = fData->Get<float>("T_Elec_Pt",i);
+			passtriggerthresholdpt = ( pt > triggerthreshold );
+			break;
+		}
+	}
 	// Keep events with exactly 3 leptons and the asked signature
 	// and store momentum and charge
 	//---------------------------------------------------------------------------
-	//if( ! fLeptonSelection->IspassAtLeastN() )
-	if( (! fLeptonSelection->IspassExactlyN()) || (! fulfillSignature) )
+	if( (! fLeptonSelection->IspassExactlyN()) || (! fulfillSignature) || (! passtriggerthresholdpt) )
 	{
-		return WZCuts::_iHasAtLeast3Leptons;
+		return std::pair<unsigned int,float>(WZCuts::_iHasAtLeast3Leptons,puw);
 	}
 	// Using the fake rate if we are in fake mode
 	if( fFO != 0 && fLeptonSelection->GetNAnalysisNoTightLeptons() != 0 )
@@ -597,8 +709,8 @@ unsigned int AnalysisWZ::InsideLoop()
 		// FFF (3,0) = (fFO->GetWeight)^3
 		// Where (N,T) are actually the number of Total leptons and PROMPT leptons. 
 		// This equivalence between tight-prompt can be done because of the approximations
-		// used. So, each tight lepton is weighted in order to get its probability to be
-		// prompt.
+		// used. So, each no-tight lepton is weighted in order to get its probability to be
+		// fake.
 		for(unsigned int k = 0; k < fLeptonSelection->GetNAnalysisNoTightLeptons(); ++k)
 		{
 			const unsigned int i = fLeptonSelection->GetNoTightIndex(k);
@@ -615,13 +727,25 @@ unsigned int AnalysisWZ::InsideLoop()
 				++_nTElecs;
 			}
 			TLorentzVector lvec = this->GetTLorentzVector(name,i);
+			// Provisional --- TO BE DELETED --- FIXME
+			/*for(unsigned int k = 0; k < fData->GetSize<float>("T_JetAKPFNoPU_Energy"); ++k) 
+			{
+				TLorentzVector Jet = this->GetTLorentzVector("JetAKPFNoPU",k);
+				// Lepton inside the Jets
+				if( fabs(Jet.DeltaR(lvec)) <= 1.0 )
+				{
+					_histos[fHEtJetnoTightLepton]->Fill(Jet.Et(),puw);
+					return std::pair<unsigned int,float>(WZCuts::_iOppositeCharge,puw);
+				}
+			}*/
+			// ----------- FIXME: TO BE DELETED
 			const double pt  = lvec.Pt();
 			const double eta = lvec.Eta();
 			puw *= fFO->GetWeight(ileptontype,pt,eta);
 		}
 	}
 
-	// Including the scale factors if proceed:    FIXME: CODE DOBLADO... MODIFICAR Y MEJORAR
+	// Including the scale factors if proceed
 	if( !fIsData )
 	{
 		int k = 0;
@@ -751,7 +875,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	// when already get the total charge of the selected leptons
 	if( leptonPair.size() == 0 )
 	{
-		return WZCuts::_iOppositeCharge;
+		return std::pair<unsigned int,float>(WZCuts::_iOppositeCharge,puw);
 	}	
 	// Accepted events with two opposite charge leptons
 	FillHistoPerCut(WZCuts::_iOppositeCharge, puw, fsNTau);
@@ -766,7 +890,7 @@ unsigned int AnalysisWZ::InsideLoop()
 		unsigned int i1 = it->first;
 		unsigned int i2 = it->second;
 		const double invMass= (lepton[i1]+lepton[i2]).M();
-		if( invMass > 120.0 || invMass < 60.0 )
+		if( invMass > 111.0 || invMass < 71.0 )
 		{
 			continue;
 		}
@@ -777,7 +901,7 @@ unsigned int AnalysisWZ::InsideLoop()
 
 	if( candidatesZMass.size() == 0 )
 	{
-		return WZCuts::_iHasZCandidate;
+		return std::pair<unsigned int,float>(WZCuts::_iHasZCandidate,puw);
 	}
 	FillHistoPerCut(WZCuts::_iHasZCandidate, puw, fsNTau);
         
@@ -786,6 +910,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	const unsigned int i1Z = ((candidatesZMass.begin())->second).first;
 	const unsigned int i2Z = ((candidatesZMass.begin())->second).second;
 	// Also check that there are not another non-overlapping Z: ZZ rejection
+	// FIXME: It doesn't sense anymore because the Exactly3Leptons requirement
 	if( candidatesZMass.size() > 1 )
 	{
 		for(std::map<double,std::pair<int,int> >::iterator it = ++candidatesZMass.begin(); 
@@ -796,7 +921,7 @@ unsigned int AnalysisWZ::InsideLoop()
 			if( index1 != i1Z && index1 != i2Z && index2 != i1Z && index2 != i2Z)
 			{
 				// Found another Z non-overlapping with the other already found
-				return WZCuts::_iHasZOverlapping;
+				return std::pair<unsigned int,float>(WZCuts::_iHasZOverlapping,puw);
 			}
 		}
 	}
@@ -869,7 +994,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	// No W candidate
 	if( wcandidate.size() == 0 )
 	{
-		return WZCuts::_iHasWCandidate; 
+		return std::pair<unsigned int,float>(WZCuts::_iHasWCandidate,puw); 
 	}
 	FillHistoPerCut(WZCuts::_iHasWCandidate, puw, fsNTau);
 	// Fill histos
@@ -917,7 +1042,7 @@ unsigned int AnalysisWZ::InsideLoop()
 	auxVar->push_back( met );
 	if( ! fLeptonSelection->IsPass("MinMET", auxVar) ) 
 	{
-		return WZCuts::_iMET;
+		return std::pair<unsigned int,float>(WZCuts::_iMET,puw);
 	}
 	FillHistoPerCut(WZCuts::_iMET, puw, fsNTau);
 
@@ -928,6 +1053,6 @@ unsigned int AnalysisWZ::InsideLoop()
 	_histos[fHZInvMass]->Fill(invMassLL,puw);
 	_histos[fHMET]->Fill(met,puw);
 
-	return WZCuts::_iNCuts;
+	return std::pair<unsigned int,float>(WZCuts::_iNCuts,puw);
 	
 }

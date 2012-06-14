@@ -50,9 +50,10 @@ class AnalysisWZ : public AnalysisBase
 			fHNJets,                   // Number of jets after all cuts
 			fHTransversMass,
 			fHdRl1Wcand,
-			fHdRl2Wcand,
-			fHIsoLepton,
-			fHD0Lepton
+			fHdRl2Wcand
+			//fHIsoLepton,
+			//fHD0Lepton
+			//,fHEtJetnoTightLepton
 		};
 		
 		//! Constructor
@@ -63,7 +64,7 @@ class AnalysisWZ : public AnalysisBase
 
 	protected:
 		virtual void Initialise();
-		virtual unsigned int InsideLoop();
+		virtual std::pair<unsigned int,float> InsideLoop();
 
 	private:
 		AnalysisWZ();

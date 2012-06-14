@@ -5,7 +5,7 @@ PACKAGE   := $(shell basename `pwd`)
 ### Dependencies
 DEPPKG     := VectorUtils TResultsTable TCounterUI PUWeight \
 	DatasetManager InputParameters TreeManager CutLevels CutManager \
-	CMSAnalysisSelector WManager FOManager WH_Analysis Utils
+	CMSAnalysisSelector WManager WH_Analysis Utils
 BASEDIR    := $(shell pwd)
 DEPSDIR    := $(foreach DEPPKG,$(DEPPKG),$(BASEDIR)/$(DEPPKG))
 
@@ -18,7 +18,8 @@ SETUPFILE  := "\#!/bin/bash"  \
 "export PATH=\$$PATH:\$$BASEDIR/bin:\$$BASEDIR/WH_Analysis/bin" \
 "export LD_LIBRARY_PATH=\$$LD_LIBRARY_PATH:\$$BASEDIR/libs" \
 "export VHSYS=\$$BASEDIR" \
-"export ANALYSISSYS=\$$BASEDIR/WH_Analysis"
+"export ANALYSISSYS=\$$BASEDIR/WH_Analysis" \
+"export PYTHONPATH=\$$PYTHONPATH:\$$BASEDIR/python"
 
 
 .PHONY: all cleanall linkage compile
