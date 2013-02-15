@@ -27,8 +27,17 @@
 
 #include<set>
 
-// Codenames of the selection cuts:
-//   -- 
+//! Auxiliary enum
+namespace MuonID
+{
+	enum identifiers
+	{
+		VBTF,
+		HWWID,
+	};
+}
+
+
 
 class MuonSelection : public CutManager
 {
@@ -37,7 +46,7 @@ class MuonSelection : public CutManager
 
 	public:
 		//! Constructor
-		MuonSelection( TreeManager * data, const int & opmode, const int & nLeptons);
+		MuonSelection( TreeManager * data, const int & opmode, const int & nLeptons, const char * runperiod);
 		virtual ~MuonSelection() { }
 
 		// Initialization of datamembers
@@ -56,28 +65,31 @@ class MuonSelection : public CutManager
 		//-- Selection
 		//---------------------------------------------
 		//! Get The lepton type for the i-esim good lepton  (tight+notight)
-		virtual LeptonTypes GetLeptonType(const unsigned int & index) const { return MUON; }	
+		//virtual LeptonTypes GetLeptonType(const unsigned int & index) const { return MUON; }	
 		//! Get The lepton type for the i-esim Tight lepton 
-		virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const { return MUON;}
+		//virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const { return MUON;}
 		//! Get The lepton type for the i-esim Tight lepton 
-		virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const { return MUON; }	
+		//virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const { return MUON; }	
 		// Loose leptons 
 		virtual unsigned int SelectLooseLeptons();
 
-
-		// Get the code names of the selection cuts
+		//! Get the code names of the selection cuts
 		virtual std::vector<std::string> GetCodenames() const;
 
 	private:
+		// Check if the muon-i pass the Vector Boson Task Force tight muon ID
+		bool PassVBTFTightID(const int & i) const;
+		// Check if the muon-i pass the HWW (WW) 2011 analysis muon ID
+		bool PassHWWMuonID(const int & i) const;
+		// Return the muon-i isolation variable (depending of the ID) over pt
+		std::pair<double,bool> GetMuonIsolationOverPt(const int & i) const;
+
 		//-- The effective cuts whose would be called by IsPass
 		//   method
 		bool IsPassPtCuts() const;
 		bool IsPassDeltaRCut(const double & deltaRMuMu) const; 
 		bool IsInsideZWindow(const double & invariantMass) const; 
 		bool IsPassMETCut(const double & MET) const;
-		
-		//! Syncronize lepton type with indices vector when fake mode active
-		virtual void SyncronizeLeptonType() { /* Not neeed for this concrete class */ }
 		
 		//! Update fakeables collection, taking into account the lepton type 
 		virtual bool WasAlreadyUpdated() { return false; }
@@ -98,6 +110,8 @@ class MuonSelection : public CutManager
 
 		// The list of the selection chain codenames 
 		std::set<std::string> _codenames;
+		// The MuonID used
+		int _muonID;
 		// The cuts
 		double kMinMuPt1          ;
 		double kMinMuPt2          ;
@@ -125,6 +139,7 @@ class MuonSelection : public CutManager
 		int    kMinNumOfMatches        ;
 		int    kMinNValidPixelHitsInTrk;
 		int    kMinNValidHitsInTrk     ;
+		int    kMinNLayers	       ;
 		double kMaxDeltaPtMuOverPtMu   ;
 
 		// Loose leptons

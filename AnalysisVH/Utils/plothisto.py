@@ -1,69 +1,13 @@
 #!/usr/bin/env python
 
-#Pseudo ROOT colors
-kBlack=1
-kRed=632
-kGreen=416
-kAzure=860
-kCyan=432
-kOrange=800
+# Getting some dicts, lists, ... related with the cosmethics
+from cosmethicshub_mod import *
 
 TEXTSIZE=0.03
-#TEXTSIZE=0.04
 
-OTHERBKG = [ "WW", "WJets_Madgraph", "TW_DR", "TbarW_DR" ]
+HISTOSWITHBINWIDTH = { "fHMET": 10 , "fHPtLepton1": 10,"fHPtLepton2":10,"fHPtLepton3":10 }
 
-LEGENDSDICT = { "WW": "WW", "WZTo3LNu": "WZ#rightarrow3l#nu", "WJets_Madgraph": "W+Jets",
-		"ZZ": "ZZ",
-		"TTbar_2L2Nu_Powheg": "t#bar{t}", "TTbar_Madgraph": "t#bar{t} inclusive",
-		"ZJets": "Z+Jets", "ZJets_Madgraph": "Z+Jets (MG)",
-		"Data": "Data", "Fakes": "Data-driven bkg",
-		"TW_DR": "tW", "TbarW_DR": "#bar{t}W",
-		"DDM_ZJets": "DDM Z+Jets",
-		"DDM_TTbar": "DDM t#bar{t}",
-		"PhotonVJets_Madgraph": "V#gamma +Jets",
-		"VGamma": "V#gamma",
-		}
-
-PAVECOORD = {'fHNRecoLeptons': 'UPRIGHT', 'fHNSelectedLeptons': 'UPRIGHT',
-		'fHMET': 'UPRIGHT', 'fHNJets': 'UPRIGHT', 
-		'fHMETAfterZCand': 'UPRIGHT', 'fHZInvMass': 'UPLEFT', 
-		'fHD0Lepton': 'UPRIGHT', 'fHZInvMassAfterWCand': 'UPLEFT',
-		'fHIsoLepton': 'UPRIGHT', 
-		'fHNPrimaryVerticesAfter3Leptons': 'UPRIGHT', 
-		'fHNSelectedPVLeptons': 'UPRIGHT', 'fHNSelectedIsoGoodLeptons': 'UPRIGHT',
-		'fHEtaLepton1': 'UPLEFT', 'fHEtaLepton2': 'UPLEFT', 'fHEtaLepton3': 'UPLEFT',
-		'fHZInvMassAfterZCand': 'UPLEFT', 'fHTransversMass': 'UPLEFT', 
-		'fHNPrimaryVertices': 'UPRIGHT', 'fHNSelectedIsoLeptons': 'UPRIGHT',
-		'fHPtLepton3': 'UPRIGHT', 'fHPtLepton2': 'UPRIGHT', 'fHPtLepton1': 'UPRIGHT',
-		'fHdRl1Wcand': 'UPLEFT', 'fHEventsPerCut': 'UPRIGHT', 'fHdRl2Wcand': 'UPLEFT',
-		'fHEventsPerCut3Lepton': 'UPRIGHT', 'fHLeptonCharge': 'UPLEFT', 
-		'fHMETAfterWCand': 'UPRIGHT', 'fHProcess': 'UPRIGHT',
-		'fHFlavour': 'UPRIGHT'
-		}
-
-COLORSDICT = { "WW" : kRed+4, "WZTo3LNu": kOrange-2, "WJets_Madgraph": kAzure+3,
-		"TTbar_2L2Nu_Powheg": kOrange+5, "TTbar_Madgraph": kOrange+5,
-		"ZZ": kRed+3, "ZJets": kCyan-2, "ZJets_Madgraph": kCyan-2,
-		"Data": kBlack, "Fakes": kAzure-7, 
-		"TW_DR": kGreen-2, "TbarW_DR": kGreen+4,
-		"DDM_ZJets": kOrange-3,
-		"DDM_TTbar": kOrange+5,
-		"PhotonVJets_Madgraph": kGreen-5,
-		"VGamma": kGreen-5,
-		}
-
-UNITDICT = { "MET": "(GeV/c)", "PT": "(GeV/c)", "ETA": "", "PHI": "",
-		"ZINVMASS": "(GeV/c^{2})", "TRANSVERSMASS": "(GeV/c^{2})",
-		"D0": "(cm)"
-		}
-
-VARDICT = { "MET": "E_{t}^{miss}", "PT": "p_{t}", "ETA": "#eta", "PHI": "#phi",
-		"ZINVMASS": "M_{ll}", "TRANSVERSMASS": "M_{T}",
-		"D0": "d_{0}", "CHARGE": "#Sigma q" 
-		}
-
-
+#FIXME: TO BE DEPRECATED: USE the function from LatinosStyle_mod module
 def LatinosStyle():
 	"""
 	Latinos style
@@ -248,7 +192,9 @@ class sampleclass(object):
 		
 		metaname = None
 
-		validkeywords = [ "title", "lumi", 'issignal', 'isdata', "metaname", "add" ]
+		self.cm      = 7   # Center of mass per default
+
+		validkeywords = [ "title", "lumi", 'issignal', 'isdata', "metaname", "add", "cm" ]
 		for key,value in keywords.iteritems():
 			if not key in keywords.keys():
 				message  = "\033[31msampleclass ERROR\033[m Incorrect instantiation of 'class'"
@@ -272,6 +218,8 @@ class sampleclass(object):
 				self.channel = value
 				if self.channel != "lll":
 					self.latexchannel = self.channel.replace("m","#mu")
+			if key == 'cm':
+				self.cm = value
 
 		# Searching the filename (except when adding):
 		self.filename = os.path.join(os.path.abspath("cluster_"+self.samplename),"Results/"+self.samplename+".root")
@@ -285,20 +233,31 @@ class sampleclass(object):
 			raise RuntimeError(message)
 		# - Extract the histogram
 		self.histogram = self.__gethistogram__()
-		# Setting the signal factor to multiply
-		if self.issignal and self.samplename.find("WH") != -1:
+		# Setting the signal factor to multiply (adapted to 2012)
+		if self.issignal and self.samplename.find("ToWW") != -1:
 			self.SIGNALFACTOR = 100.0
 		# The Legend
 		self.legend = LEGENDSDICT[self.samplename]
 		# The variable and unit (guessing)
-		unitguess = filter(lambda x: self.histoname.upper().split("LEPTON")[0].find(x) != -1, UNITDICT.keys())
-		if len(unitguess) > 0:
-			# Taking the first one
-			self.unit = UNITDICT[unitguess[0]]
-			self.variable = VARDICT[unitguess[0]]
-			if unitguess[0] == "PT" or unitguess[0] == "ETA":
+		try:
+			# Trying exact name
+			unitguess = filter(lambda x: self.histoname.upper().split("LEPTON")[0] == "FH"+x, UNITDICT.keys())[0]
+		except IndexError:
+			# guessing 
+			unitguesslist = filter(lambda x: self.histoname.upper().split("LEPTON")[0].find(x) != -1, UNITDICT.keys())
+			if len(unitguesslist) > 0:
+				unitguess = unitguesslist[0]
+			else:
+				unitguess = ""
+		if unitguess != "":
+			self.unit = UNITDICT[unitguess]
+			self.variable = VARDICT[unitguess]
+			if unitguess == "PT" or unitguess == "ETA":
 				number = self.histoname.upper().split("LEPTON")[1]
-				self.variable = self.variable[:-1]+"_{"+str(number)+"}}"
+				if unitguess == "PT":
+					self.variable = self.variable[:-1]+"_{"+str(number)+"}}"
+				else:
+					self.variable = self.variable+"_{"+str(number)+"}"
 		else:
 			# Just a minor check: the fHLeptonCharge 
 			if "CHARGE" in self.histoname.upper():
@@ -391,7 +350,7 @@ class sampleclass(object):
 		# Titles
 		self.xtitle = self.variable+" "+self.unit
 		self.ytitle = "Events/(%.1f %s)" % (self.histogram.GetBinWidth(1),self.unit)
-		self.title  = "CMS Preliminary\n#sqrt{s}=7 TeV,  L=%.1f fb^{-1}" % (self.lumi/1000.0)
+		self.title  = "CMS Preliminary\n#sqrt{s}=%i TeV,  L=%.1f fb^{-1}" % (self.cm,self.lumi/1000.0)
 
 		
 		# Colors
@@ -402,8 +361,9 @@ class sampleclass(object):
 		else:
 			self.histogram.SetFillColor(COLORSDICT[self.samplename])
 			self.histogram.SetLineColor(kBlack)
-
-		if self.issignal and ( "WH" in self.samplename or "WZ" in self.samplename):
+		# Apadt to 2012
+		#if self.issignal and ( "WH" in self.samplename or "WZ" in self.samplename):
+		if self.issignal and ( "ToWW" in self.samplename or "WZ" in self.samplename):
 			self.histogram.SetFillStyle(3254)
 			self.histogram.SetLineColor(COLORSDICT[self.samplename]-1)
 
@@ -437,7 +397,7 @@ def getcoord(where,xwidth,ywidth,ystart=-1):
 	if where == "UPLEFT":
 		x1 = 0.22 
 	elif where == "UPRIGHT":
-		x1 = 0.60  
+		x1 = 0.56#0.60  
 	else:
 		message = "\033[31mgetcoord ERROR\033[m Not defined coordinates at '%s'" % where
 		raise RuntimeError(message)
@@ -547,7 +507,11 @@ def plotallsamples(sampledict,**keywords):
 	"""..function::plotallsamples(sampledict,plottype=plottype,rebin=rebin,hasratio=hasratio,\
 			isofficial=isofficial[,plotsuffix=suf,allsamplesonleg=allsamplesonleg]) -> None
 
-	Main function where the plot are actually done
+	Main function where the plot are actually done. 
+	The ratio plot is defined per bin content as:
+	   Points:     Bin i-esim: datayield/totbkgyield +/- sqrt(error_datayield/totbkgyield)
+	   Blue Band:  Bin i-esim: 1.0 +/- sqrt(error_totbkgyield/totbkgyield)
+	TO BE INCORPORATED SOON: systematics errors
 
 	:param sampledict: dictionary of sampleclass instances containing all the sample to
 	                   be plotted
@@ -613,6 +577,8 @@ def plotallsamples(sampledict,**keywords):
 	ROOT.gROOT.ForceStyle()
 	ROOT.gStyle.SetOptStat(0)
 
+	ROOT.TH1.SetDefaultSumw2()
+
 	# Create the folder structure
 	try:
 		os.mkdir("Plots")
@@ -635,7 +601,6 @@ def plotallsamples(sampledict,**keywords):
 	# Defining the ratio histogram
 	ratio = ROOT.TH1F("ratio","",datasample.histogram.GetNbinsX(),
 			datasample.histogram.GetXaxis().GetXmin(),datasample.histogram.GetXaxis().GetXmax())
-	ratio.Sumw2()
 	ratio.SetLineColor(datasample.histogram.GetMarkerColor())
 	# And the ratio-error for MC histogram
 	errors = ROOT.TH1F("errorsratio","",datasample.histogram.GetNbinsX(),
@@ -650,7 +615,7 @@ def plotallsamples(sampledict,**keywords):
 	legend.AddEntry(datasample.histogram,LEGENDSDICT[datasample.samplename],"P")
 	signalegstr = LEGENDSDICT[signalsample.samplename]
 	if signalsample.SIGNALFACTOR != 1:
-		signallegstr = str(signalsample.SIGNALFACTOR)+" #times "+signallegstr
+		signalegstr = str(int(signalsample.SIGNALFACTOR))+"#times"+signalegstr
 	format = "F"
 	if plottype == 2:
 		format = "L"
@@ -720,7 +685,8 @@ def plotallsamples(sampledict,**keywords):
 			legend.AddEntry(leginfodict[legname][0],legname,leginfodict[legname][1])
 	# Data
 	hsmax  = 1.1*hs.GetMaximum()
-	hsdata = 1.1*datasample.histogram.GetMaximum()
+	binmax = datasample.histogram.GetMaximumBin()
+	hsdata = 1.1*(datasample.histogram.GetMaximum()+datasample.histogram.GetBinError(binmax))
 	hs.SetMaximum(max(hsmax,hsdata))
 	# Create canvas
 	canvas = ROOT.TCanvas("canvas")
@@ -753,9 +719,13 @@ def plotallsamples(sampledict,**keywords):
 				errors.GetXaxis().SetBinLabel(i,binlabel)
 			errors.SetBinContent(i,1.0)
 			try:
-				errors.SetBinError(i,1.0/mcratio.GetBinError(i))
+				errors.SetBinError(i,mcratio.GetBinError(i)/mcratio.GetBinContent(i))
 			except ZeroDivisionError:
 				errors.SetBinError(i,0.0)
+			try:
+				ratio.SetBinError(i,datasample.histogram.GetBinError(i)/mcratio.GetBinContent(i))
+			except ZeroDivisionError:
+				ratio.SetBinError(i,0.0)
 		ratio.SetMaximum(2.3)
 		errors.SetMaximum(2.3)
 		ratio.SetMinimum(0.0)
@@ -763,9 +733,6 @@ def plotallsamples(sampledict,**keywords):
 		ratio.SetLineColor(kBlack)
 		ratio.SetMarkerStyle(20)
 		ratio.SetMarkerSize(0.70)
-		#ratio.SetFillColor(38)
-		#ratio.SetLineColor(38)
-		#ratio.SetFillStyle(3144)
 		errors.SetFillColor(38)
 		errors.SetLineColor(38)
 		errors.SetFillStyle(3144)
@@ -774,7 +741,7 @@ def plotallsamples(sampledict,**keywords):
 		errors.GetXaxis().SetTitleSize(0.14)
 		errors.GetXaxis().SetLabelSize(0.14)
 		errors.GetYaxis().SetNdivisions(205);
-		errors.GetYaxis().SetTitle("N_{data}/N_{MC}");
+		errors.GetYaxis().SetTitle("N_{data}/N_{est}");
 		errors.GetYaxis().SetTitleSize(0.14);
 		errors.GetYaxis().SetTitleOffset(0.2);
 		errors.GetYaxis().SetLabelSize(0.14);
@@ -786,7 +753,6 @@ def plotallsamples(sampledict,**keywords):
 		paddown.Draw()
 		paddown.cd()
 
-		#ratio.Draw("E4")
 		errors.Draw("E2")
 		ratio.Draw("PESAME")
 		line = ROOT.TLine(ratio.GetXaxis().GetXmin(),1.0,ratio.GetXaxis().GetXmax(),1.0)
@@ -817,6 +783,9 @@ def plotallsamples(sampledict,**keywords):
 		legend.SetNColumns(2)
 		textwidth=0.02
 		textlength=0.15
+		# Adapt to 2012 (common ToWW substring)
+		if signalname.find("ToWW") != -1:
+			textlength = 0.19
 		legend.SetTextSize(textwidth)
 	y1width = textwidth*legend.GetNRows()
 	xwidth  = textlength*legend.GetNColumns()
@@ -867,7 +836,7 @@ if __name__ == '__main__':
 	parser.set_defaults(rebin=0,plottype=1,luminosity=4922.0,data="Data",ismodefake=False,\
 			isfakeasdata=False,wantratio=False,\
 			plotsuffix="PDF",\
-			isofficial=False) #wantroot=FAlse
+			isofficial=False, runperiod="2011") #wantroot=FAlse
 	parser.add_option( "-s",action='store',dest='signal', metavar="WZ|WH#", help="Signal name, for Higgs subsituing # for mass")
 	parser.add_option( "-d",action='store',dest='data', help="Data name [default: 'Data']")
 	parser.add_option( "-r",action='store',dest='rebin',  help="Rebin the histos a factor N [default: 0]")
@@ -875,7 +844,8 @@ if __name__ == '__main__':
 			"0: All backgrounds and signal stacked --- " \
 			"1: All backgrounds stacked, signal alone [default] --- "\
 			"2: No stacking at all")
-	parser.add_option( "-l",action='store',dest='luminosity', help="Luminosity in pb^-1 [default: 4922.0 pb^-1]")
+	parser.add_option( "-R",action='store',dest='runperiod', help="Run period: 2011, 2012  [default: 2011]")
+	parser.add_option( "-l",action='store',dest='luminosity', help="Luminosity in pb^-1 [default: 4922.0 pb^-1 if -R 2011]")
 	parser.add_option( "-F",action='store_true',dest='ismodefake', help="Mode Fakes: deactivating DrellYan and Z+Jets MC samples. Incompatible with '-f' option")
 	parser.add_option( "-f",action='store_true',dest='isfakeasdata', help="Mode Fakes: Comparing fake sample with the MC-samples which can generate it. "\
 			"In this mode, the Fake sample is used as Data and it will be compared with "\
@@ -902,7 +872,10 @@ if __name__ == '__main__':
 	signal = opt.signal
 	if opt.signal:
 		if signal.find("WH") == 0:
-			signal = signal.replace("WH","WHToWW2L")
+			if opt.runperiod.find("2011") != -1:
+				signal = signal.replace(signal,"WHToWW2L"+signal.replace("WH",""))
+			elif opt.runperiod.find("2012") != -1:
+				signal = signal.replace(signal,"wzttH"+signal.replace("WH","")+"ToWW")
 	
 		if signal.find("WZ") == 0:
 			signal = signal.replace("WZ","WZTo3LNu")
@@ -919,36 +892,47 @@ if __name__ == '__main__':
 	# Guessing the channel if it wasn't introduced by user
 	if not opt.channel:
 		path=os.getcwd()
-		genericsignal = signal[:2]
-		# covering the case when isfakeasdata
-		if opt.isfakeasdata:
-			genericsignal = ""
-		try:
-			opt.channel = filter(lambda x: x.find(genericsignal+"e") != -1 or \
-					x.find(genericsignal+"m") != -1, path.split("/"))[0].replace(genericsignal,"")
-		except IndexError:
-			if "leptonchannel" in path:
-				opt.channel = "lll"
-			else:
-				message = "\033[31mplothisto ERROR\033[m Cannot guessing the channel, please enter it with the '-c' option"
-				sys.exit(message)
-
+		# Just the three last words (FIXME it depends of the number of leptons
+		# It could be easy to change depending of the number of leptons
+		nLeptonsAN = 3
+		if "leptonchannel" in path:
+			opt.channel = "lll"
+		else:
+			opt.channel = path.split("/")[-1][-nLeptonsAN:]
+		
 	print "\033[34mplothisto INFO\033[m Plotting histogram '"+histoname+"' ..."
 	sys.stdout.flush()
 	
 	# -- Extracting the samples available
 	samples = map(lambda x: x.replace("cluster_",""),glob.glob("cluster_*"))
+	# -- If we are dealing with WH, be sure not using another Higgs mass sample as background
+	# -- Adapted to 2012 (common for all signal: "ToWW"
+	#if signal.find("WH") == 0:
+	#	samples = filter(lambda x: x.find("WH") != 0 or (x.find("WH") == 0 and x == signal), samples)
+	if signal.find("ToWW") != -1:
+		samples = filter(lambda x: x.find("ToWW") == -1 or (x.find("ToWW") != -1 and x == signal), samples)
 	# --- Some manipulations needed for the samples to be merged. DY and ZJets
 	# --- FIXME: High dependence of the MC sample type (Powheg)
 	ZJETSLIST= map(lambda x: x+"_Powheg", ["DYee", "DYmumu",\
 			"DYtautau" ,"Zmumu","Ztautau","Zee"])
-	VGAMMALIST= map(lambda x: x.replace("cluster_",""),glob.glob("cluster_Zgamma*")+glob.glob("cluster_Wgamma*"))
+	if opt.runperiod == "2011":
+		zgammaname= "Zgamma"
+		ttbarname = "TTbar_2L2Nu_Powheg" 
+		tWname    = "TW_DR"
+		tbarWname = "TbarW_DR"
+
+	elif opt.runperiod == "2012":
+		zgammaname= "ZgammaToLLG"
+		ttbarname = "TTbar_Madgraph"
+		tWname    = "TW"
+		tbarWname = "TbarW"
+	VGAMMALIST= map(lambda x: x.replace("cluster_",""),glob.glob("cluster_"+zgammaname+"*")+glob.glob("cluster_Wgamma*"))
 	DDMZJETSLIST = map(lambda x : x+"_WEIGHTED", ZJETSLIST)
 	metasamples = { "ZJets": [] ,"DDM_ZJets": [], "DDM_TTbar":[], "VGamma": [] }
 	METASAMPLESCOMP = { "ZJets":  ZJETSLIST,
 			"VGamma": VGAMMALIST,
 			"DDM_ZJets": DDMZJETSLIST,
-			"DDM_TTbar": ["TTbar_2L2Nu_Powheg_WEIGHTED"] }
+			"DDM_TTbar": [ttbarname+"_WEIGHTED"] }
 
 	for name in samples:
 		for metaname in metasamples.iterkeys():
@@ -1000,7 +984,7 @@ if __name__ == '__main__':
 	allsamplesonleg=False
 	# Just we don't want some samples when deal with fake mode
 	if opt.ismodefake:
-		nofakessamples = [ "WJets","TTbar","DY","ZJets","TW_DR","TbarW_DR" ]
+		nofakessamples = [ "WJets","TTbar","DY","ZJets",tWname,tbarWname ]
 		condition = ""
 		for nf in nofakessamples:
 			condition += " not '%s' in x and" % nf
@@ -1015,10 +999,19 @@ if __name__ == '__main__':
 		COLORSDICT["WW"] = kRed+4
 		LEGENDSDICT["WJets_Madgraph"] = "WJets"
 		COLORSDICT["WJets_Madgraph"] = kAzure+3
-		LEGENDSDICT["TW_DR"]="tW"
-		COLORSDICT["TW_DR"] = kGreen-2
-		LEGENDSDICT["TbarW_DR"]="#bar{t}W"
-		COLORSDICT["TbarW_DR"] = kGreen+4
+		LEGENDSDICT[tWname]="tW"
+		COLORSDICT[tWname] = kGreen-2
+		LEGENDSDICT[tbarWname]="#bar{t}W"
+		COLORSDICT[tbarWname] = kGreen+4
+
+	# Convert run period to center of mass
+	if opt.runperiod == "2011":
+		cm = 7
+	elif opt.runperiod == "2012":
+		cm = 8
+	else:
+		message = "\033[31mplothisto ERROR\033[m Run period (option '-R') '%s' not considered. See help" % (opt.runperiod)
+		sys.exit(message)
 
 
 	# Dictionary of samples with its sampleclass associated
@@ -1034,7 +1027,7 @@ if __name__ == '__main__':
 				sc =  []
 				for realname in realsampleslist:
 					sc.append( sampleclass(realname, histoname,lumi=float(opt.luminosity),\
-							isdata=isdata,issignal=issignal,channel=opt.channel,metaname=i) )
+							isdata=isdata,issignal=issignal,channel=opt.channel,metaname=i,cm=cm) )
 				# Adding
 				sampledict[i] = sc[0]
 				for k in xrange(1,len(sc)):
@@ -1043,7 +1036,7 @@ if __name__ == '__main__':
 				continue
 			except KeyError:
 				pass
-		sampledict[i] = sampleclass(i,histoname,lumi=float(opt.luminosity),isdata=isdata,issignal=issignal,channel=opt.channel)
+		sampledict[i] = sampleclass(i,histoname,lumi=float(opt.luminosity),isdata=isdata,issignal=issignal,channel=opt.channel,cm=cm)
 	# Rebining
 	nbins = sampledict[opt.data].histogram.GetNbinsX()
 	if int(opt.rebin) == 0:
@@ -1060,18 +1053,51 @@ if __name__ == '__main__':
 			rebin=nbins/10
 	else:
 		rebin = int(opt.rebin)
-	# -- Just controlling that the rebin number is a divisor of the initial bins
-	#-- Note that:   NbinsInit=rebin*NbinsNew+k,
-	k = nbins % rebin
-	if k != 0:
-		# We want a k=0, so start the algorithm to search it
-		if float(nbins)/float(rebin)-nbins/rebin > 0.5:
-			nearestmult = lambda x: x+1
-		else:
-			nearestmult = lambda x: x-1
-		while( k != 0 ):
-			rebin = nearestmult(rebin)
-			k = nbins % rebin
+	# Checking that the new rebinning fulfill the requirement of cut:
+	# a bin has to begin just in the cut (not after or before), so forcing
+	# to have the bin width we assing it, no matters if it is divisor or not
+	# from the original binning
+	try:
+		binwidth = HISTOSWITHBINWIDTH[histoname]
+		if "PtLepton" in histoname and opt.channel == "lll":
+			binwidth /= 2
+		# Forcing to have the binwidth
+		totalX = sampledict[opt.data].histogram.GetBinLowEdge(nbins+1)-sampledict[opt.data].histogram.GetBinLowEdge(1)
+		newnumberofbins = totalX/binwidth
+		rebin = nbins/int(newnumberofbins)
+	except KeyError:
+		# -- Just controlling that the rebin number is a divisor of the initial bins
+		#-- Note that:   NbinsInit=rebin*NbinsNew+k,
+		k = nbins % rebin
+		if k != 0:
+			# New algorith, going right and left simultaneously and take the 
+			# the first one which accomplish k=0
+			nearestleft = lambda x: x-1
+			nearestright = lambda x: x+1
+			rebinleft = rebin
+			kleft = k
+			rebinright= rebin
+			kright = k
+			while( k != 0 ):
+				rebinleft = nearestleft(rebinleft)
+				kleft = nbins % rebinleft
+				if kleft == 0:
+					k = kleft
+					winner = rebinleft
+				rebinright= nearestright(rebinright)
+				kright = nbins % rebinright
+				if kright == 0:
+					k = kright
+					winner = rebinright
+			rebin = winner
+			# We want a k=0, so start the algorithm to search it
+#			if float(nbins)/float(rebin)-nbins/rebin > 0.5:
+#				nearestmult = lambda x: x+1
+#			else:
+#				nearestmult = lambda x: x-1
+#			while( k != 0 ):
+#				rebin = nearestmult(rebin)
+#				k = nbins % rebin
 	
 	if int(opt.plottype) == 2:
 		print "\033[33mplothisto WARNING\033[m Not validated YET plottype==2"

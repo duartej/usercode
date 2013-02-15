@@ -604,17 +604,18 @@ void DatasetManager::RedownloadFiles() {
 };
 
 
-
 TString DatasetManager::GuessLocalBasePath() {
     TString host = gSystem->HostName();
     if (host.Contains("geol.uniovi.es"))
       return TString("/hadoop");
     else if (host.Contains("ifca.es"))
-      return TString("/gpfs/csic_projects/cms/data");
+      return TString("/gpfs/csic_projects/tier3data");
     else if (host.Contains("gcsic"))
-      return TString("/gpfs/csic_projects/cms/data");
+      return TString("/gpfs/csic_projects/tier3data");
     else if (host.Contains("wn")) // including workernodes
-      return TString("/gpfs/csic_projects/cms/data");
+      return TString("/gpfs/csic_projects/tier3data");
+    else if (host.Contains("astro")) // including astro workernodes
+      return TString("/gpfs/csic_projects/tier3data");
     else if (host.Contains("cern.ch"))
       return TString("/pool/data1/MiniTrees/");
     else {
@@ -709,12 +710,13 @@ vector<TString> DatasetManager::GetRealDataFiles(const char* relativepath,
   {
 	  fullpath = DatasetManager::GuessLocalBasePath() + "/Data/" + relativepath + "/";
   } 
-  
+
   TString command("ls ");
   command += 
-    fullpath + "/" + basefile + ".root " +
-    fullpath + "/" + basefile + "_[0-9].root " +
-    fullpath + "/" + basefile + "_[0-9][0-9].root";
+    fullpath + "/" + basefile + "*.root ";  //Simpler +
+    //fullpath + "/" + basefile + "_[0-9].root " +
+    //fullpath + "/" + basefile + "_[0-9][0-9].root " +
+    //fullpath + "/" + basefile + "_[0-9]*.root";  // Just when incorporates the luminosity in the filename
 #ifdef DEBUGDS
   cout << "DEBUG: Executing command " << command << endl;
 #else

@@ -39,9 +39,11 @@ class ElecSelection : public CutManager
 	public:
 		//! Constructor for Cut based electrons
 		ElecSelection( TreeManager * data, const int & WPlowpt, const int & WPhighpt,
-				const int & nTights, const int & nLeptons);
+				const int & nTights, const int & nLeptons,
+				const char * runperiod);
 		//! Constructor for BDT electrons
-		ElecSelection( TreeManager * data, const int & nTights, const int & nLeptons);
+		ElecSelection( TreeManager * data, const int & nTights, const int & nLeptons, 
+				const char * runperiod);
 		//! Destructor
 		virtual ~ElecSelection();
 
@@ -65,11 +67,11 @@ class ElecSelection : public CutManager
 		//-- Selection
 		//---------------------------------------------
 		//! Get the lepton type of the i-esim good lepton (tight+notight)
-		virtual LeptonTypes GetLeptonType(const unsigned int & index) const { return ELECTRON; }
+		//virtual LeptonTypes GetLeptonType(const unsigned int & index) const { return ELECTRON; }
 		//! Get the lepton type of the i-esim tight lepton
-		virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const { return ELECTRON; }
+		//virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const { return ELECTRON; }
 		//! Get the lepton type of the i-esim no tight lepton
-		virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const { return ELECTRON; }
+		//virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const { return ELECTRON; }
 
 	private:
 		//-- The effective cuts whose would be called by IsPass
@@ -82,9 +84,6 @@ class ElecSelection : public CutManager
 		bool IsPassWP( const unsigned int & index ) const;
 		//! Check if pass the BDT Working Point selected
 		bool IsPassBDT( const unsigned int & index ) const;
-		
-		//! Syncronize lepton type with indices vector when fake mode active
-		virtual void SyncronizeLeptonType() { /* Not neeed for this concrete class */ }
 		
 		//! Update fakeables collection, taking into account the lepton type 
 		virtual bool WasAlreadyUpdated() { return false; }
@@ -135,18 +134,27 @@ class ElecSelection : public CutManager
 		double kMaxPTIsolationR2  ;
 		double kMaxPTIsolationR3  ;
 		double kMaxPTIsolationR4  ;
+
+                double kMinMVAValueR1     ;
+                double kMinMVAValueR2     ;
+                double kMinMVAValueR3     ;
+                double kMinMVAValueR4     ;
+                double kMinMVAValueR5     ;
+                double kMinMVAValueR6     ;
 		
-		int    kMinNValidHitsSATrk     ;
-		double kMaxNormChi2GTrk        ;
-		int    kMinNumOfMatches        ;
-		int    kMinNValidPixelHitsInTrk;
-		int    kMinNValidHitsInTrk     ;
-		double kMaxDeltaPtMuOverPtMu   ;
-
-		// Loose
-		double kMaxLoosed0;
-		double kMaxLooseIso;
-
+		//! Id related var
+	        double kMaxSigmaietaietaR1;
+	       	double kMaxdeltaPhiInR1; 
+	       	double kMaxdeltaEtaInR1;
+	       	double kMaxHtoER1;       
+	       	double kMaxSigmaietaietaR2;
+	       	double kMaxdeltaPhiInR2; 
+	       	double kMaxdeltaEtaInR2;
+	       	double kMaxHtoER2;  
+	       	double kMaxdr03TkSumPtOverPt;
+	       	double kMaxdr03EcalSumPtOverPt;
+	       	double kMaxdr03HcalSumPtOverPt;
+		
 	ClassDef(ElecSelection,0);
 };
 #endif

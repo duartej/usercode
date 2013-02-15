@@ -41,6 +41,9 @@ class AnalysisWZ : public AnalysisBase
 			fHNSelectedIsoLeptons,    //Selected Isolated leptons
 			fHNSelectedIsoGoodLeptons,//Selected Isolated Good Leptons
 			fHLeptonCharge,           //Sum charges of leptons
+			fHEtJetMatchedLeptonPreSel,//Et of the jet matching a lepton at preselection
+			fHEtJetMatchedLeptonAfterZ,//Et of the jet matching a lepton after z candidate
+			fHEtJetMatchedLepton,     //Et of the jet matching a lepton after all cuts
 			fHZInvMass,               //Invariant mass of leptons in/out of Z peak after all cust
 			fHZInvMassAfterZCand,     //Invariant mass of leptons in/out of Z peak
 			fHZInvMassAfterWCand,     //Invariant mass of leptons in/out of Z peak
@@ -53,7 +56,6 @@ class AnalysisWZ : public AnalysisBase
 			fHdRl2Wcand
 			//fHIsoLepton,
 			//fHD0Lepton
-			//,fHEtJetnoTightLepton
 		};
 		
 		//! Constructor
@@ -68,8 +70,16 @@ class AnalysisWZ : public AnalysisBase
 
 	private:
 		AnalysisWZ();
+		//! Check if Zmass range is the defined when is signal
+		const bool isSignalMCInsideZmassRange(const float & masslow,const float & masshigh) const;
+		//! Stores histos and datamembers related with MC-truth information, just for signal case
+		//! It returns the number of electron and muons leptons (taking into account the 
+		//! taus decaying to them)
+		const unsigned int setSignalMCInfo(const double & eventweight);
+		// Number of no tight muons, electrons and events (Nti)
 		int _nTMuons;
 		int _nTElecs;
+		int _nTEvents;
 
 		ClassDef(AnalysisWZ,0);
 

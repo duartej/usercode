@@ -84,23 +84,23 @@ def geterrorarray(xs,xserrors):
 	#    is the same as the variation of the error of the other channel
 	for id,(lval,rval) in IDCHANNELMATRIX.iteritems():
 		# - 1. Lepton eff. - Asumming fully correlation between channels 
-		arrayEsys["LeptonEff"][id] = evalsyserr("LeptonEff",lval,rval)
+		arrayEsys["LEPTON"][id] = evalsyserr("LEPTON",lval,rval)
 		# - 2. Trigger eff.: fully correlated when Z->ll channels, i.e., eee with eee and eem (and viceversa)
 		#                    and mmm with mmm and mme. 
-		if lval[:-1] == rval[:-1]:
-			arrayEsys["TriggerEff"][id] = evalsyserr("TriggerEff",lval,rval)
+		#if lval[:-1] == rval[:-1]:
+		#	arrayEsys["TriggerEff"][id] = evalsyserr("TriggerEff",lval,rval)
 		# - 3. Electron Energy Scale: assuming fully correlation between electronic channels (contains at least an electron)
 		if lval.find('e') != -1 and rval.find('e') != -1:
-			arrayEsys["ElecEnergyScale"][id] = evalsyserr("ElecEnergyScale",lval,rval)
+			arrayEsys["EES"][id] = evalsyserr("EES",lval,rval)
 		# - 4. Muon Momentum Scale: assuming fully correlation between muonic channels (contains at least an muon)
 		if lval.find('m') != -1 and rval.find('m') != -1:
-			arrayEsys["MuonMomentumScale"][id] = evalsyserr("MuonMomentumScale",lval,rval)
+			arrayEsys["MMS"][id] = evalsyserr("MMS",lval,rval)
 		# - 5. Pile-up reweighting technique: assuming fully correlation between all channels
-		arrayEsys["PILEUP"][id] = evalsyserr("PILEUP",lval,rval)
+		arrayEsys["PU"][id] = evalsyserr("PU",lval,rval)
 		# - 6. PDF sytematic effect: assuming fully correlation between all channels
 		arrayEsys["PDF"][id] = evalsyserr("PDF",lval,rval)
 		# - 7. MET resolution effect: assuming fully correlation between all channels
-		arrayEsys["METres"][id] = evalsyserr("METres",lval,rval)
+		arrayEsys["MET"][id] = evalsyserr("MET",lval,rval)
 		# - 8. Fakeable object method: assuming not correlation between channels
 		if lval == rval:
 			arrayEsys["DDMMC"][id] = evalsyserr("DDMMC",lval,rval)
@@ -133,7 +133,7 @@ def geterrorarray(xs,xserrors):
 	return arrayE,arrayEsys
 
 
-def bluemethod(workingpath,zoutrange,whatuse,verbose):
+def bluemethod(workingpath,zoutrange,whatuse,mcprod,verbose):
 	""" ..function:: bluemethod(workingpath,zoutrange,whatuse) --> 
 	"""
 	from array import array
@@ -143,7 +143,7 @@ def bluemethod(workingpath,zoutrange,whatuse,verbose):
 	
 	nchannels = len(IDCHANNEL.keys())
 	# Get cross-section and its relative-errors
-	xs,xserrors = getxserrorsrel(workingpath,xstype=whatuse)
+	xs,xserrors = getxserrorsrel(workingpath,xstype=whatuse,mcprod=mcprod)
 	### ========== INITIALIZATIONS =============================
 	### Arrays to be used to fill the matrices: arrayName  
 	### --- U: link between observable and measure 
@@ -200,7 +200,8 @@ def bluemethod(workingpath,zoutrange,whatuse,verbose):
 		
 	
 	if whatuse == "inclusive":
-		print "\033[33;1mbluemethod WARNING\033[m Inclusive cross-section calculation is not well-understood. See 'bluemethod -v'"
+		print "\033[33;1mbluemethod WARNING\033[m Inclusive cross-section"\
+				" calculation is not well-understood. See 'bluemethod -v'"
 
 	if verbose:
 		newline = "\033[32;2mbluemethod VERBOSE\033[m "
@@ -219,7 +220,8 @@ def bluemethod(workingpath,zoutrange,whatuse,verbose):
 			statwz= errors["stat"]/BRprompt
 			lumiwz= errors["lumi"]/BRprompt
 			totalwz = sqrt(syswz**2.+statwz**2.+lumiwz**2.)
-			message += newline+"Inclusive XS using just the exclusive values: %.2f+-%.2f(stat)+-%.2f(sys)+-%.2f(lumi)  (total=%.2f)" % \
+			message += newline+"Inclusive XS using just the exclusive "\
+					"values: %.3f+-%.3f(stat)+-%.3f(sys)+-%.3f(lumi)  (total=%.3f)" % \
 					(xswz,statwz,syswz,lumiwz,totalwz)
 		# Matrices: E y E_sys
 		print message
@@ -233,7 +235,7 @@ if __name__ == '__main__':
 	
 	#Opciones de entrada
 	parser = OptionParser()
-	parser.set_defaults(workingpath=os.getcwd(),zoutrange=False,xstype="exclusive",verbose=False)
+	parser.set_defaults(workingpath=os.getcwd(),zoutrange=False,xstype="exclusive",mcprod="Summer12",verbose=False)
 	parser.add_option( '-w', '--workingdir', action='store', type='string', dest='workingpath',\
 			help="Working directory. It must exist the usual folder structure")
 	parser.add_option( '-z', '--ZrangeasinMC', action='store_true', dest='zoutrange',\
@@ -244,6 +246,9 @@ if __name__ == '__main__':
 	parser.add_option( '-x', '--xs', action='store', dest='xstype',\
 			help="The type of cross-section to be combined. Valid keywords: 'WZinclusive' 'WZexclusive'."\
 			" [Default 'exclusive']")
+	parser.add_option( '-m', '--mcprod', action='store', type='string', dest='mcprod',\
+			help="The MC production to be used as signal. This affects the number of"\
+			" generated events inside the Z mass range [71,111]. Per default: 'Summer12'")
 	parser.add_option( '-v', '--verbose', action='store_true', dest='verbose',\
 			help="Activing the flag more information is printed [Default: False]")
 	
@@ -255,7 +260,8 @@ if __name__ == '__main__':
 		raise RuntimeError(message)
 
 	print "\033[34mbluemethod INFO\033[m Combining the %s cross-section at '%s'" % (opt.xstype,opt.workingpath)
-	xsmean,xserrors = bluemethod(opt.workingpath,opt.zoutrange,opt.xstype,opt.verbose)
+	print "\033[34mbluemethod INFO\033[m MC production to be used: %s" % opt.mcprod
+	xsmean,xserrors = bluemethod(opt.workingpath,opt.zoutrange,opt.xstype,opt.mcprod,opt.verbose)
 
 	output  = "++++ Cross section combined using BLUE method ++++\n"
 	output += "xs=%.4f" % xsmean

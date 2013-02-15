@@ -46,29 +46,30 @@ std::map<std::string,std::vector<std::string> > getdatapathfiles(const char * ru
 			<< " See \033[37datamanagercreator -h\033[m" << std::endl;
 		exit(-1);
 	}
-	std::string production = "LatinosSkims";
+	std::string production = "MC_Fall11/WZ11";
+	std::string production2012 = "MC_Summer12_53X/WH";
 	std::string runpath;
 	std::vector<std::string> filenames;
 	std::map<std::string,std::vector<std::string> > mappathfiles;
 
 	if( strcmp(runperiod,"2011A") == 0 )
 	{
-		runpath = "../"+production+"/Data7TeVRun2011A";
+		runpath = "../"+production;
 		// O Quizas este --> runpath = "../"+production+"/Data7TeVRun2011A";
 		if( strcmp(finalstate,"mmm") == 0 )
 		{
 			// DoubleMuon
-			filenames.push_back("Tree_DoubleMuMay10_Latinos_211.4");
-			filenames.push_back("Tree_DoubleMuV4_Latinos_929.7");
-			filenames.push_back("Tree_DoubleMuAug5_Latinos_317.8");
-			filenames.push_back("Tree_DoubleMuV6_Latinos_658.9");
+			filenames.push_back("Tree_DoubleMu_May10_216.7pbinv");
+			filenames.push_back("Tree_DoubleMu_PromptV4_970.0");
+			filenames.push_back("Tree_DoubleMu_Aug5_337.3pbinv");
+			filenames.push_back("Tree_DoubleMu_PromptV6_706.3pbinv");
 		}
 		else if( strcmp(finalstate,"eee") == 0 )
 		{
-			filenames.push_back("Tree_DoubleElectronMay10_Latinos_211.4");
-			filenames.push_back("Tree_DoubleElectronV4_Latinos_929.7"); // OJO hay dos, lo hara el DM
-			filenames.push_back("Tree_DoubleElectronAug5_Latinos_317.8"); 
-			filenames.push_back("Tree_DoubleElectronV6_Latinos_658.9");
+			filenames.push_back("Tree_DoubleElectron_May10_216.7pbinv");
+			filenames.push_back("Tree_DoubleElectron_PromptV4_970.0"); // OJO hay dos, lo hara el DM
+			filenames.push_back("Tree_DoubleElectron_Aug5_337.3pbinv"); 
+			filenames.push_back("Tree_DoubleElectron_PromptV6_706.3pbinv");
 		}
 		else if( strcmp(finalstate,"mme") == 0  ) 
 		{
@@ -84,10 +85,6 @@ std::map<std::string,std::vector<std::string> > getdatapathfiles(const char * ru
 			}
 			filenames.insert( filenames.end(), 
 					mapmuons.begin()->second.begin(),mapmuons.begin()->second.end() );
-			/*filenames.push_back("Tree_MuEGMay10_210.5");
-			filenames.push_back("Tree_MuEGV4_927.9"); // OJO hay dos, lo hara el DM
-			filenames.push_back("Tree_MuEGAug5_334.4"); 
-			filenames.push_back("Tree_MuEGV6_662.9");*/
 		}
 		else if( strcmp(finalstate,"eem") == 0  ) 
 		{
@@ -115,15 +112,15 @@ std::map<std::string,std::vector<std::string> > getdatapathfiles(const char * ru
 	}
 	else if( strcmp(runperiod,"2011B") == 0 )
 	{
-		runpath = "../"+production+"/Data7TeVRun2011B";
+		runpath = "../"+production;
 		if( strcmp(finalstate,"mmm") == 0 )
 		{
 			// DoubleMuon
-			filenames.push_back("Tree_DoubleMuV1_Latinos_2509");
+			filenames.push_back("Tree_DoubleMu_B_2740pbinv");
 		}
 		else if( strcmp(finalstate,"eee") == 0 )
 		{
-			filenames.push_back("Tree_DoubleElectronV1_Latinos_2509");
+			filenames.push_back("Tree_DoubleElectron_B_2740pbinv");
 		}
 		else if( strcmp(finalstate,"mme") == 0  )
 		{
@@ -180,7 +177,200 @@ std::map<std::string,std::vector<std::string> > getdatapathfiles(const char * ru
 			exit(-4);
 		}
 		mappathfiles[map2011A.begin()->first] = map2011A.begin()->second;
-		mappathfiles[map2011B.begin()->first] = map2011B.begin()->second;
+		const std::string labelname = map2011B.begin()->first;
+		std::vector<std::string>::iterator lastit = mappathfiles[labelname].end();
+		std::vector<std::string> v2011B = map2011B.begin()->second;
+		mappathfiles[labelname].insert(lastit,v2011B.begin(),v2011B.end());
+	}
+	else if( strcmp(runperiod,"2012A") == 0 )
+	{
+		runpath = "../"+production2012;
+		if( strcmp(finalstate,"mmm") == 0 )
+		{
+			// DoubleMuon
+			filenames.push_back("Tree_DoubleMuA");
+		}
+		else if( strcmp(finalstate,"eee") == 0 )
+		{
+			filenames.push_back("Tree_DoubleElectronA");
+		}
+		else if( strcmp(finalstate,"mme") == 0  ) 
+		{
+			std::map<std::string,std::vector<std::string> > mapmuons = 
+				getdatapathfiles("2012A","mmm");
+			// Just checking things are consistent
+			if( mapmuons.size() != 1)
+			{
+				std::cerr << "\033[31mgetdatapathfiles ERROR\033[m Some weird error;"
+					<< " this shows some inconsistency in the code. Contact the developer"
+					<< std::endl;
+				exit(-4);
+			}
+			filenames.insert( filenames.end(), 
+					mapmuons.begin()->second.begin(),mapmuons.begin()->second.end() );
+		}
+		else if( strcmp(finalstate,"eem") == 0  ) 
+		{
+			std::map<std::string,std::vector<std::string> > mapelec = 
+				getdatapathfiles("2012A","eee");
+			// Just checking things are consistent
+			if( mapelec.size() != 1)
+			{
+				std::cerr << "\033[31mgetdatapathfiles ERROR\033[m Some weird error;"
+					<< " this shows some inconsistency in the code. Contact the developer"
+					<< std::endl;
+				exit(-4);
+			}
+			filenames.insert( filenames.end(), 
+					mapelec.begin()->second.begin(),mapelec.begin()->second.end() );
+		}
+		else
+		{
+			std::cerr << "\033[31mgetdatapathfile ERROR\033[m Not recognized"
+				" finalstate '"  << finalstate << "'"
+				<< " See \033[37datamanagercreator -h\033[m" << std::endl;
+			exit(-1);
+		}
+		mappathfiles[runpath] = filenames;
+	}
+	else if( strcmp(runperiod,"2012B") == 0 )
+	{
+		runpath = "../"+production2012;
+		if( strcmp(finalstate,"mmm") == 0 )
+		{
+			// DoubleMuon 
+			filenames.push_back("Tree_DoubleMuB"); 
+		}
+		else if( strcmp(finalstate,"eee") == 0 )
+		{
+			filenames.push_back("Tree_DoubleElectronB");
+		}
+		else if( strcmp(finalstate,"mme") == 0  )
+		{
+			std::map<std::string,std::vector<std::string> > mapmuons = 
+				getdatapathfiles("2012B","mmm");
+			// Just checking things are consistent
+			if( mapmuons.size() != 1)
+			{
+				std::cerr << "\033[31mgetdatapathfiles ERROR\033[m Some weird error;"
+					<< " this shows some inconsistency in the code. Contact the developer"
+					<< std::endl;
+				exit(-4);
+			}
+			filenames.insert( filenames.end(), 
+					mapmuons.begin()->second.begin(),mapmuons.begin()->second.end() );
+		}
+		else if( strcmp(finalstate,"eem") == 0  )
+		{
+			std::map<std::string,std::vector<std::string> > mapelec = 
+				getdatapathfiles("2012B","eee");
+			// Just checking things are consistent
+			if( mapelec.size() != 1)
+			{
+				std::cerr << "\033[31mgetdatapathfiles ERROR\033[m Some weird error;"
+					<< " this shows some inconsistency in the code. Contact the developer"
+					<< std::endl;
+				exit(-4);
+			}
+			filenames.insert( filenames.end(), 
+					mapelec.begin()->second.begin(),mapelec.begin()->second.end() );
+		}
+		else
+		{
+			std::cerr << "\033[31mgetdatapathfile ERROR\033[m Not recognized"
+				" finalstate '"  << finalstate << "'"
+				<< " See \033[37datamanagercreator -h\033[m" << std::endl;
+			exit(-1);
+		}
+		mappathfiles[runpath] = filenames;
+	}
+	else if( strcmp(runperiod,"2012C") == 0 )
+	{
+		runpath = "../"+production2012;
+		if( strcmp(finalstate,"mmm") == 0 )
+		{
+			filenames.push_back("Tree_DoubleMuC"); 
+		}
+		else if( strcmp(finalstate,"eee") == 0 )
+		{
+			filenames.push_back("Tree_DoubleElectronC");
+		}
+		else if( strcmp(finalstate,"mme") == 0  )
+		{
+			std::map<std::string,std::vector<std::string> > mapmuons = 
+				getdatapathfiles("2012C","mmm");
+			// Just checking things are consistent
+			if( mapmuons.size() != 1)
+			{
+				std::cerr << "\033[31mgetdatapathfiles ERROR\033[m Some weird error;"
+					<< " this shows some inconsistency in the code. Contact the developer"
+					<< std::endl;
+				exit(-4);
+			}
+			filenames.insert( filenames.end(), 
+					mapmuons.begin()->second.begin(),mapmuons.begin()->second.end() );
+		}
+		else if( strcmp(finalstate,"eem") == 0  )
+		{
+			std::map<std::string,std::vector<std::string> > mapelec = 
+				getdatapathfiles("2012C","eee");
+			// Just checking things are consistent
+			if( mapelec.size() != 1)
+			{
+				std::cerr << "\033[31mgetdatapathfiles ERROR\033[m Some weird error;"
+					<< " this shows some inconsistency in the code. Contact the developer"
+					<< std::endl;
+				exit(-4);
+			}
+			filenames.insert( filenames.end(), 
+					mapelec.begin()->second.begin(),mapelec.begin()->second.end() );
+		}
+		else
+		{
+			std::cerr << "\033[31mgetdatapathfile ERROR\033[m Not recognized"
+				" finalstate '"  << finalstate << "'"
+				<< " See \033[37datamanagercreator -h\033[m" << std::endl;
+			exit(-1);
+		}
+		mappathfiles[runpath] = filenames;
+	}
+	else if( strcmp(runperiod,"2012") == 0 )
+	{
+		std::map<std::string,std::vector<std::string> > map2012A = 
+			getdatapathfiles("2012A",finalstate);
+		std::map<std::string,std::vector<std::string> > map2012B = 
+			getdatapathfiles("2012B",finalstate);
+		std::map<std::string,std::vector<std::string> > map2012C = 
+			getdatapathfiles("2012C",finalstate);
+		// Just checking things are consistent
+		if( map2012A.size() != 1 && map2012B.size() != 1 && map2012C.size() != 1 )
+		{
+			std::cerr << "\033[31mgetdatapathfiles ERROR\033[m Some weird error;"
+				<< " this shows some inconsistency in the code. Contact the developer"
+				<< std::endl;
+			exit(-4);
+		}
+		mappathfiles[map2012A.begin()->first] = map2012A.begin()->second;
+		if( (map2012A.begin()->first == map2012B.begin()->first) && 
+			(map2012A.begin()->first == map2012C.begin()->first) )
+		{
+			// We can't use the same structure than 2011 because the directory was different 
+			// for each period:  Now must be appendded 
+			const std::string labelname = map2012B.begin()->first;
+			std::vector<std::string>::iterator lastit = mappathfiles[labelname].end();
+			std::vector<std::string> v2012B = map2012B.begin()->second;
+			mappathfiles[labelname].insert(lastit,v2012B.begin(),v2012B.end());
+			// C -period (labelname is the same for all, see the if condition)
+			lastit = mappathfiles[labelname].end();  // New last element
+			std::vector<std::string> v2012C = map2012C.begin()->second;
+			mappathfiles[labelname].insert(lastit,v2012C.begin(),v2012C.end());
+		}
+		else
+		{
+			// As 2011
+			mappathfiles[map2012B.begin()->first] = map2012B.begin()->second;
+			mappathfiles[map2012C.begin()->first] = map2012C.begin()->second;
+		}
 	}
 	else
 	{
@@ -232,23 +422,56 @@ const std::vector<TString> * extractdatafiles(TString dataName, const char * run
 	{
 		storeXSE = true;
 
-
-		//TString folder("Summer11 Latinos");
-		TString folder("Fall11 Latinos");
+		TString folder;		
 		TString skim("/");
-
-		if (dataName.Contains("WH")) 
+		if( strncmp(runperiod,"2011",4) == 0 )
 		{
-			folder = "HWW Fall11 Latinos";
-			skim = "/";
-			dataName.Replace(0,2, "WHToWW2L");
+			folder = "Fall11";
 		}
+		else if( strncmp(runperiod,"2012",4) == 0 )
+		{
+			folder = "Summer12_53X"; // 53X-release
+		}
+		else
+		{
+			std::cerr << "\033[33mextractdatafiles WARNING\033[m"
+				<< " Not implemented the run period '"
+				<< runperiod << "'. Exiting..."	<< std::endl;
+		}
+
+		if( dataName.Contains("WH") )
+		{
+			if( strncmp(runperiod,"2011",4) == 0 ) 
+			{
+				folder = std::string("HWW "+std::string(folder)).c_str();
+				skim = "/";
+				dataName.Replace(0,2, "WHToWW2L");
+			}
+			else if(strncmp(runperiod,"2012",4) == 0 )
+			{
+				dataName.Replace(0,2,"wzttH");
+				dataName += "ToWW";
+			}
+		}
+		
 		
 		// 1) Load DatasetManager
 		DatasetManager* dm = 0;
 		dm = new DatasetManager(folder, skim);
 		
 		dm->LoadDataset(dataName);  // Load information about a given dataset
+		if( strncmp(runperiod,"2012",4) == 0 )
+		{
+			// The MC_Summer12 datafiles are not following the standard
+			// notation of the 2011 files (the rush of production...), so
+			// I'm patching everywhere to deal with it. This is another patch...
+			dm->SetSkim("WH");
+		}
+		else
+		{
+			dm->SetSkim("WZ11");
+		}
+
 		AddDataFiles(dm->GetFiles(),*datafiles); //Find files
 		
 		xsection = dm->GetCrossSection();
@@ -337,21 +560,21 @@ void display_usage()
 	std::cout << "usage: datamanagercreator [dataname] [options]" << std::endl;
 	std::cout << "" << std::endl;
 	std::cout << "Options:" << std::endl;
-	std::cout << "    -r <2011A|2011B|2011>       Run period to extract datafiles" << std::endl;
-	std::cout << "    -f <mmm|mme|eee|eem>        Final state to be used in the data case" << std::endl;
-	std::cout << "    -h                          Displays this help message and exits " << std::endl;
+	std::cout << "    -r <201*A|201*B|201*> *=1,2  Run period to extract datafiles" << std::endl;
+	std::cout << "    -f <mmm|mme|eee|eem>         Final state to be used in the data case" << std::endl;
+	std::cout << "    -h                           Displays this help message and exits " << std::endl;
 	std::cout << "" << std::endl;
 	std::cout << "The 'dataname' must be one of the shown below. If 'dataname' is not used, all the dataname"
 		<< " in the list will be extracted" << std::endl;
 	std::cout << "List of known dataname:" << std::endl;
 	std::cout << "    Higgs:             WH# (#: Higgs Mass hypothesis)" << std::endl;
-	std::cout << "    Z + Jets Madgraph: ZJets_Madgraph" << std::endl;
+	std::cout << "    Z + Jets Madgraph: ZJets_Madgraph DYJets_Madgraph" << std::endl;
 	std::cout << "    Z + Jets Powheg:   DYee_Powheg DYmumu_Powheg Dytautau_Powheg Zee_Powheg Zmumu_Powheg Ztautau_Powheg" << std::endl;
-	std::cout << "    VGamma + Jets  :   PhotonVJets_Madgraph" << std::endl;
-	std::cout << "    VGamma         :   ZgammaToMuMuMad ZgammaToElElMad ZgammaToTauTauMad WgammaToMuNuMad WgammaToElNuMad WgammaToTauNuMad" << std::endl;
+	std::cout << "    VGamma + Jets  :   [2011] PhotonVJets_Madgraph" << std::endl;
+	std::cout << "                       [2012] WgammaToLNuG ZgammaToLLG" << std::endl;
 	std::cout << "    Zbb + Jets:        Zbb" << std::endl;
-	std::cout << "    Other backgrounds: -WZ --> PYTHIA SAMPLE TO BE DEPRECATED-\n" 
-		<<   "                       WZTo3LNu ZZ WW TTbar_Madgraph WJets_Madgraph TW TbarW Fakes" << std::endl;
+	std::cout << "    ZZ Powheg:         ZZ4E ZZ4Tau ZZ4Mu ZZ2E2Mu ZZ2Mu2Tau ZZ2E2Tau" << std::endl;
+	std::cout << "    Other backgrounds: WZTo3LNu ZZ WW TTbar_Madgraph WJets_Madgraph TW TbarW Fakes" << std::endl;
 }
 
 int main(int argc, char *argv[])
@@ -383,7 +606,11 @@ int main(int argc, char *argv[])
 				runperiod = argv[i+1];
 				if( strcmp(runperiod,"2011A") != 0 
 						&& strcmp(runperiod,"2011B") != 0 
-						&& strcmp(runperiod,"2011") != 0 )
+						&& strcmp(runperiod,"2011") != 0
+						&& strcmp(runperiod,"2012A") != 0
+						&& strcmp(runperiod,"2012B") != 0
+						&& strcmp(runperiod,"2012") != 0 )
+
 				{
 					std::cerr << "\033[31mdatamanager ERROR\033[m "
 						<< "Not a valid run period: '" << runperiod
@@ -439,35 +666,76 @@ int main(int argc, char *argv[])
 	// Signal
         knowndata.insert("WH120");
         knowndata.insert("WH130");
+	if(  strncmp(runperiod,"2012",4) == 0 )
+	{
+		knowndata.insert("WH125");
+	}
 	// Z+jets
-	knowndata.insert("ZJets_Madgraph");
-	knowndata.insert("DYee_Powheg");
-	knowndata.insert("DYmumu_Powheg");
-	knowndata.insert("DYtautau_Powheg");
-	knowndata.insert("Zee_Powheg");
-	knowndata.insert("Zmumu_Powheg");
-	knowndata.insert("Ztautau_Powheg");
+	if(  strncmp(runperiod,"2012",4) == 0 )
+	{
+		knowndata.insert("ZJets_Madgraph");
+	}
+	else if( strncmp(runperiod,"2011",4) == 0 )
+	{
+        	knowndata.insert("DYee_Powheg");
+        	knowndata.insert("DYmumu_Powheg");
+        	knowndata.insert("DYtautau_Powheg");
+        	knowndata.insert("Zee_Powheg");
+        	knowndata.insert("Zmumu_Powheg");
+        	knowndata.insert("Ztautau_Powheg");
+	}
 	// VGamma + Jets
-	knowndata.insert("PhotonVJets_Madgraph");
-	// VGamma 
-	knowndata.insert("ZgammaToMuMuMad");
+	if( strncmp(runperiod,"2012",4) == 0 )
+	{
+		knowndata.insert("WgammaToLNuG");
+		knowndata.insert("ZgammaToLLG");
+	}
+	else if( strncmp(runperiod,"2011",4) == 0 )
+	{
+		knowndata.insert("PhotonVJets_Madgraph");
+	}
+	// VGamma---> DEPRECATED
+	/*knowndata.insert("ZgammaToMuMuMad");
 	knowndata.insert("ZgammaToElElMad");
 	knowndata.insert("ZgammaToTauTauMad");
 	knowndata.insert("WgammaToMuNuMad");
 	knowndata.insert("WgammaToElNuMad");
-	knowndata.insert("WgammaToTauNuMad");
+	knowndata.insert("WgammaToTauNuMad");*/
 	// Zbb+jets
 	knowndata.insert("Zbb");
 	// Other background
 	// knowndata.insert("WZ"); --> Pythia sample to be deprecated
 	knowndata.insert("WZTo3LNu");
 	knowndata.insert("ZZ");
-	knowndata.insert("WW");
-	//knowndata.insert("TTbar_Madgraph");
-	knowndata.insert("TTbar_2L2Nu_Powheg");
+	// ZZ powheg
+	knowndata.insert("ZZ4E");
+	knowndata.insert("ZZ4Mu");
+	knowndata.insert("ZZ4Tau");
+	knowndata.insert("ZZ2E2Mu");
+	knowndata.insert("ZZ2Mu2Tau");
+	knowndata.insert("ZZ2E2Tau");
+	// END ZZ powheg
+	knowndata.insert("WW"); // FIXME Use WWTo2L2Nu_MAdgraph ???
+	if( strncmp(runperiod,"2012",4) == 0 )
+	{
+		// FIXME:: Sure ???
+		knowndata.insert("TTbar_Madgraph");
+	}
+	else if( strncmp(runperiod,"2011",4) == 0 )
+	{
+		knowndata.insert("TTbar_2L2Nu_Powheg");
+	}
 	knowndata.insert("WJets_Madgraph");
-	knowndata.insert("TW_DR");
-	knowndata.insert("TbarW_DR");
+	if( strncmp(runperiod,"2012",4) == 0 )
+	{
+		knowndata.insert("TW");
+		knowndata.insert("TbarW");
+	}
+	else if( strncmp(runperiod,"2011",4) == 0 )
+	{
+		knowndata.insert("TW_DR");
+		knowndata.insert("TbarW_DR");
+	}
 	knowndata.insert("Fakes");
 
 	//Data 

@@ -35,10 +35,12 @@ class LeptonMixingSelection : public CutManager
 		//! Constructor using cut-based electrons
 		LeptonMixingSelection( TreeManager * data, const int & WPlowpt, 
 				const int & WPhighpt, 
-				const int & nTights, const int & nLeptons);
+				const int & nTights, const int & nLeptons,
+				const char * runperiod);
 		//! Constructor using BDT-based electrons
 		LeptonMixingSelection( TreeManager * data,
-				const int & nTights, const int & nLeptons);
+				const int & nTights, const int & nLeptons,
+				const char * runperiod);
 		//! Destructor
 		virtual ~LeptonMixingSelection();
 		
@@ -60,12 +62,12 @@ class LeptonMixingSelection : public CutManager
 		
 		//-- Selection
 		//---------------------------------------------
-		//! Get The lepton type for the i-esim lepton (tight+notight)
-		virtual LeptonTypes GetLeptonType(const unsigned int & index) const; 
-		//! Get The lepton type for the i-esim tight lepton
-		virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const; 
-		//! Get The lepton type for the i-esim no tight lepton
-		virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const; 
+		//! Get The lepton type for the i-esim lepton (tight+notight) -- TO BE DEPRECATED
+		//virtual LeptonTypes GetLeptonType(const unsigned int & index) const; 
+		//! Get The lepton type for the i-esim tight lepton  -- TO BE DEPRECATED
+		//virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const;  
+		//! Get The lepton type for the i-esim no tight lepton -- TO BE DEPRECATED
+		//virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const; 
 
 		//! Overloaded Reset method in order to deal with the extra data members
 		//! used by this class
@@ -75,9 +77,9 @@ class LeptonMixingSelection : public CutManager
 		//! Pt cuts for both muons and electrons
 		bool IsPassPtCuts(const int & nMuons, const int & nElecs) const;
 
-		//! Check if the 'index' is found in the vector 'leptonsvector'
-		bool isfoundindex(const std::vector<int> * const leptonsvector, 
-				const int & index) const;
+		//! Check if the 'lepton' is found in the vector 'leptonsvector'
+		bool isfound(const LeptonRel & lepton, 
+				const std::vector<LeptonRel> * const leptonsvector) const;
 		
 		//! Select basic muons: 
 		//! - with pt > MinPt and fabs(eta) < eta 
@@ -94,9 +96,6 @@ class LeptonMixingSelection : public CutManager
 		// Loose leptons 
 		virtual unsigned int SelectLooseLeptons();
 
-		//! Syncronize lepton type with indices vector when fake mode active
-		virtual void SyncronizeLeptonType();
-		
 		//! Update fakeables collection, taking into account the lepton type 
 		virtual bool WasAlreadyUpdated() { return true; }
 		
@@ -107,26 +106,7 @@ class LeptonMixingSelection : public CutManager
 		//! The muon cut manager
 		MuonSelection * fMuonSelection;
 		//! The electron cut manager
-		ElecSelection * fElecSelection;
-		
-		// The list of the selection chain codenames 
-		//std::set<std::string> _codenames;
-
-		//! Vector containing the type of lepton which
-		//! corresponds to the counterpart index vector (from
-		//! the mother class). It could be done directly by a map
-		//! but then is needed modify the mother class.. (Maybe it's useful..)
-		std::vector<LeptonTypes> * _leptontypebasicLeptons;
-		std::vector<LeptonTypes> * _leptontypecloseToPVLeptons;
-		std::vector<LeptonTypes> * _leptontypeIsoLeptons;
-		std::vector<LeptonTypes> * _leptontypeGoodIdLeptons;
-
-		//! Vector containing the type of lepton which corresponds to the 
-		//! index vector of the _tightLeptons
-		std::vector<LeptonTypes> * _tightLeptonTypes;
-		//! Vector containing the type of lepton which corresponds to the 
-		//! index vector of the _notightLeptons
-		std::vector<LeptonTypes> * _notightLeptonTypes;
+		ElecSelection * fElecSelection;		
 };
 
 #endif

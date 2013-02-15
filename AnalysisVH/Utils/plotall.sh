@@ -15,7 +15,7 @@ Generate the plots and tables of each final state
 
 SYNTAX:
 
-   $0 [-l luminosity] [-a] [ [-F|-f] | [-c] ] <WZ|WHnnn>
+   $0 [-r runperiod] [-l luminosity] [-a] [ [-F|-f] | [-c] ] <WZ|WHnnn>
 
 
    Note that the signal is a mandatory argument. WHnnn must be
@@ -25,9 +25,11 @@ SYNTAX:
 
 OPTIONS:
 
-   [-l]: Set the luminosity. Default: 4922.0 (full 2011 period- UPDATED at March-2012)
+   [-r]: Run period: 2011 or 2012 [Default: 2011]
+   [-l]: Set the luminosity. [Default: 4922.0 (for 2011 run period)
+                                       12103.3 (for 2012 run period)]
    [-a]: Activate the autobinning
-   [-F]: Activate the fake mode (Z+Jets,DY and tbar{t} = PPF)
+   [-F]: Activate the fake mode (Z+Jets,DY, WW and tbar{t} = PPF)
    [-f]: Activate fakeable mode: the Fakes data sample is considered
          as data and compared with the potential MC sample which could
 	 contribute (so the Monte Carlo sample was sent in -F 3,2 mode)
@@ -53,8 +55,8 @@ checkprocs()
 }
 
 # Default
-#luminosity=4626.8 # NEW CALCULATION -->
-luminosity=4922.0 
+runperiod=2011
+luminosity=""
 
 
 #
@@ -84,14 +86,16 @@ isreduced="-j DY,Z+Jets,Other"
 fakeasdata=""
 ctsample=""
 
-while getopts l:Ffach opt;
+while getopts l:r:Ffach opt;
 	do
 		case "$opt" in
+			r)	runperiod=$OPTARG;;
 			l)	luminosity=$OPTARG;;
 			a)	autobin="yes";;
 			F)	fakemode="-F";
 				#isreduced="-j Other@TbarW_DR,TW_DR,WJets_Madgraph,WW";;
-				isreduced="-j VGamma";;
+				#isreduced="-j VGamma";;
+				isreduced="";;
 			f) 	fakeasdata="yes";
 			        isreduced="";;
 			c)	ctsample="yes";;
@@ -110,6 +114,23 @@ then
 	exit -1;
 fi;
 
+# Checking the luminosity period, if not set we are putting the default depending the run period
+if [ "X$luminosity" == "X" ];
+then 
+	if [ "$runperiod" == "2011" ];
+	then
+		luminosity=4922.0;
+	elif [ "$runperiod" == "2012" ];
+	then
+		luminosity=12103.3
+		isreduced="-j VGamma@WgammaToLNuG,ZgammaToLLG"
+	else
+		echo "[plotall] WARNING: the run period introduced is not supported. Changing to '2011'"
+		luminosity=4922.0
+	fi;
+fi
+
+
 # Go to the working directory
 cd $PWD
 
@@ -121,7 +142,7 @@ HISTOSGEN="fHGenFinalState fHGenFinalStateNoTaus fHGenWElectrons fHGenWMuons fHG
 fHGenPtLepton_1_0 fHGenPtLepton_2_0 fHGenPtLepton_3_0"
 HISTOSLEP="fHNRecoLeptons fHNSelectedLeptons"
 
-HISTOSNOC="fHEventsPerCut fHLeptonCharge fHNRecoLeptons fHNJets fHNPrimaryVertices fHNPrimaryVerticesAfter3Leptons"
+HISTOSNOC="fHEventsPerCut fHLeptonCharge fHNJets fHNPrimaryVertices fHNPrimaryVerticesAfter3Leptons"
 HISTOS4B="fHMET fHTransversMass fHPtLepton1 fHPtLepton2 fHPtLepton3 fHEtaLepton1 fHEtaLepton2 fHEtaLepton3"
 if [ "$1" == "WZ" ];
 then
@@ -129,18 +150,25 @@ then
 	HISTOS8B=""
 	plotmode=0
 else
-	HISTOS4B="$HISTOS4B fHMinDeltaRLp1Lp2 fHMaxDeltaRLp1Lp2 fHMinDeltaPhiLp1Lp2 fHMinDeltaPhiLp1Lp2 fHMETAfterWCand fHTransversMassAfterWCand fHHInvMass fHHInvMassAfterJetVeto" 
+	HISTOS4B="$HISTOS4B fHMinDeltaRLp1Lp2 fHMaxDeltaRLp1Lp2 fHMinDeltaPhiLp1Lp2 fHMinDeltaPhiLp1Lp2 fHMETAfterWCand fHTransversMassAfterWCand fHHInvMass fHHInvMassAfterZVeto fHHInvMassAfterOppSign fHLeadingJetET fHDeltaPhiWMET" 
 	HISTOS8B="fHTrileptonMass fHTrileptonMassAfterWCand fHHT fHHTAfterWCand" 
 fi;
 
 fsdirectories=`ls |grep ${signal:0:2}`
 
 #-------------------------------------------------------------
+# XXX DEPRECATED XXX 
 # Extracting PPP contribution to Fakes (if needed)
+#if [ "X${fakeasdata}" != "X" -o "X${fakemode}" != "X" ]; then
+#	promptsubstract -s ${signal:0:2};
+#fi
+# XXX DEPRECATED XXX 
+
+# Extracting the Nt3 term to Nt2 estimation
 if [ "X${fakeasdata}" != "X" -o "X${fakemode}" != "X" ]; then
-	promptsubstract -s ${signal:0:2};
+	nt3subtract -s ${signal:0:2};
 fi
-#-------------------------------------------------------------
+
 
 echo "Creating lepton final state"
 dircommasep=`echo $fsdirectories|tr " " ","`
@@ -178,6 +206,7 @@ then
 	# If everything is fine then renaming
 	signal=${signalarray[0]}
 	data=${signalarray[1]}
+	# FIXME --- WHAT ABOUT 2012 ??
 	if [ `echo $signal|cut -d_ -f1` == "TTbar" ];
 	then
 		signal="TTbar_2L2Nu_Powheg"
@@ -222,7 +251,7 @@ do
 	for i in $HISTOSNOC;
 	do
 		# open a subshell
-		($plothistoexe $i -r 1 -s $signal -p $plotmode -l $luminosity $fakemode $fakeasdata -u -o) &
+		($plothistoexe $i -r 1 -s $signal -p $plotmode -R $runperiod -l $luminosity $fakemode $fakeasdata -u -o) &
 		NPROC=$(checkprocs $NPROC $NCPU)
 		if [ $NPROC -eq 0 ]; then
 			wait;
@@ -230,7 +259,7 @@ do
 	done;
 	if [ "X$j" == "Xleptonchannel" ];
 	then
-		($plothistoexe fHFlavour -r 1 -s $signal -p $plotmode -l $luminosity $fakemode $fakeasdata -u -o) & 
+		($plothistoexe fHFlavour -r 1 -s $signal -p $plotmode -R $runperiod -l $luminosity $fakemode $fakeasdata -u -o) & 
 		NPROC=$(checkprocs $NPROC $NCPU)
 		if [ $NPROC -eq 0 ]; then
 			wait;
@@ -239,7 +268,7 @@ do
 	
 	for i in $HISTOS4B;
 	do
-		($plothistoexe $i $rbinoption4 -s $signal -p $plotmode -l $luminosity $fakemode $fakeasdata -u -o) &
+		($plothistoexe $i $rbinoption4 -s $signal -p $plotmode -R $runperiod -l $luminosity $fakemode $fakeasdata -u -o) &
 		NPROC=$(checkprocs $NPROC $NCPU)
 		if [ $NPROC -eq 0 ]; then
 			wait;
@@ -248,7 +277,7 @@ do
 	
 	for i in $HISTOS8B;
 	do
-		($plothistoexe $i $rbinoption8 -s $signal -p $plotmode -l $luminosity $fakemode $fakeasdata -u -o) &
+		($plothistoexe $i $rbinoption8 -s $signal -p $plotmode -R $runperiod -l $luminosity $fakemode $fakeasdata -u -o) &
 		NPROC=$(checkprocs $NPROC $NCPU)
 		if [ $NPROC -eq 0 ]; then
 			wait;

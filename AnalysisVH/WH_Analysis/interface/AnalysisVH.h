@@ -40,24 +40,27 @@ class AnalysisVH : public AnalysisBase
 			fHNSelectedIsoLeptons,    //Selected Isolated leptons
 			fHNSelectedIsoGoodLeptons,//Selected Isolated Good Leptons
 			fHMinDeltaRLp1Lp2,        //Smallest DeltaR between 2 opp. sign leptons    |
-			fHMaxDeltaRLp1Lp2,         //Largest DeltaR between 2 opp. sign leptons    |_ After JetVeto cut
+			fHMaxDeltaRLp1Lp2,        //Largest DeltaR between 2 opp. sign leptons    |_ After opp. sign cut
 			fHMinDeltaPhiLp1Lp2,      //Smallest Delta phi between 2 opp. sign leptons |
 			fHMaxDeltaPhiLp1Lp2,      //Largest Delta phi between 2 opp. sign leptons  |
 			fHLeptonCharge,           //Sum charges of leptons before 2 opp. sign leptons cut
-			fHHInvMassAfterJetVeto,   //Invariant mass of leptons from H after JetVeto cut
+			fHHInvMassAfterOppSign,   //Invariant mass of leptons from H before Z Veto
+			fHHInvMassAfterZVeto,     //Invariant mass of leptons from H after Z Veto
 			fHHInvMass,               //Invariant mass of leptons supposedly from H after all cuts
 			fHMET,                    //Missing ET after all cuts
-			fHMETAfterWCand,        // MET after jet veto cut
+			fHMETAfterWCand,          // MET after jet veto cut
 			fHNJets,                  // Number of Jets before the jet veto
-			fHTransversMass,            // Transverse mass between all leptons and MET after all cuts
+			fHTransversMass,          // Transverse mass between all leptons and MET after all cuts
 			fHTransversMassAfterWCand,// Transverse mass between all leptons and MET after jet veto cut
-			fHTrileptonMass,            //Invariant mass of the 3 leptons after all cuts
+			fHTrileptonMass,          //Invariant mass of the 3 leptons after all cuts
 			fHTrileptonMassAfterWCand,//Invariant mass of the 3 leptons after jet veto
-			fHHT,                        //HT = sum of all transverse energy in the event
-			fHHTAfterWCand            //HT after jet veto
+			fHHT,                     //HT = sum_{lepton} pt+ sum_{jets} pt+ MET
+			fHHTAfterWCand,           //HT after jet veto
+			fHLeadingJetET,           // Transverse Energy of leading jet after op. sign cut
+			fHDeltaPhiWMET           // DeltaPhi between 2 leading lepton and MET-vector
 		};
 
-		//! Constructor (TO BE DEPRECATED: tree)
+		//! Constructor
 		AnalysisVH( TreeManager * data, std::map<LeptonTypes,InputParameters*> ipmap, 
 				CutManager * selectorcuts, const unsigned int & finalstate );
 		//! Destructor
@@ -66,10 +69,12 @@ class AnalysisVH : public AnalysisBase
 
 	protected:
 		virtual void Initialise();
-		virtual std::pair<unsigned int,float> InsideLoop(); // = 0;
+		virtual std::pair<unsigned int,float> InsideLoop();
 
 	private:
 		AnalysisVH();
+		int _nTMuons;
+		int _nTElecs;
 		
 		ClassDef(AnalysisVH,0);
 

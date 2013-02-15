@@ -27,6 +27,7 @@
 
 #include"TreeManager.h"
 #include "LeptonTypes.h"
+#include "LeptonRel.h"
 #include "InputParameters.h"
 
 
@@ -48,7 +49,7 @@ class CutManager
 	public:
 		//! Constructor: nTights = -1 to enter in NORMALSAMPLE mode
 		//!              nTights >= 0 to enter in FAKEABLESAMPLE mode
-		CutManager(TreeManager * data, const int & nTights, const int & nLeptons); 
+		CutManager(TreeManager * data, const int & nTights, const int & nLeptons, const char * runperiod); 
 		//! Destructor
 		virtual ~CutManager();
 
@@ -70,6 +71,9 @@ class CutManager
 		//! Return a vector of string containing the names of the 'codenams'
 		virtual std::vector<std::string> GetCodenames() const = 0;
 
+		//! Set the factor to be multiplied each lepton pt (momentum/energy scale sys.)
+		void SetPtSystematicFactor(const double & mu, 
+				const double & ebarrel, const double & eendcap);
 		
 		//! Selection stuff (in parenthesis the meaning when fake mode active)
 		//! Number of leptons which pass the basic selection (Loose)
@@ -80,20 +84,16 @@ class CutManager
 		unsigned int GetNIsoLeptons();
 		//! Number of Good Identified leptons (tight + no tight)
 		unsigned int GetNGoodIdLeptons();
-		//! Number of Tight Leptons 
-		//unsigned int GetNTightLeptons();
-		//! Number of no Tight Leptons 
-		//unsigned int GetNnoTightLeptons();
 
 		//! Auxiliary methods to deal with fakeables sample
 		//! ---------------------------------------------------------------
-		//! Return true if exactly have _nLeptons (or _nTight tight leptons
-		//! and _nFails no tight leptons in the FAKEABLESAMPLE case), after
-		//! all cuts (_selectedGoodIdLeptons must be already fill in)
+		//! Return true if exactly have CutManager::_nLeptons 
+		//! (or CutManager::_nTight+CutManager::_nFails in the FAKEABLESAMPLE case), 
+		//! after all cuts (_selectedGoodIdLeptons must be already fill in)
 		bool IspassExactlyN();
-		//! Return true if at least have _nLeptons (or _nTight tight leptons
-		//! and _nFails no tight leptons in the FAKEABLESAMPLE case), after
-		//! all cuts (_selectedGoodIdLeptons must be already fill in)
+		//! Return true if at least have CutManager::_nLeptons
+		//! (or CutManager::_nTight+CutManager::_nFails  the FAKEABLESAMPLE case),
+		//! after all cuts (_selectedGoodIdLeptons must be already fill in)
 		bool IspassAtLeastN();
 		//! Overloaded method to allow any combination of tights and no tights,
 		//! the first argument is the number of leptons we want to be passed, 
@@ -104,30 +104,30 @@ class CutManager
 		//! Return true if we are in FAKEABLESAMPLE mode
 		inline bool IsInFakeableMode() const { return _samplemode == CutManager::FAKEABLESAMPLE ; }
 
-		void UpdateFakeableCollections( const std::vector<int> * finalcol );
 		
 		//-- Getters
 		//! Get good leptons, i.e., whatever passing the GoodId level, also the no tight 
 		//! leptons if fakeable mode is active
-		virtual std::vector<int> * GetGoodLeptons() const { return _selectedGoodIdLeptons; }
+		virtual std::vector<LeptonRel> * GetGoodLeptons() const { return _selectedGoodIdLeptons; }
 		//! Get the Tight leptons (passing the PV, Iso and ID cuts)
-		inline virtual std::vector<int> * GetTightLeptons() const { return _tightLeptons; }
+		inline virtual std::vector<LeptonRel> * GetTightLeptons() const { return _tightLeptons; }
 		//! Get the noTight leptons (not passing the PV, Iso and ID cuts)
-		inline virtual std::vector<int> * GetNoTightLeptons() const { return _notightLeptons; }
-		//! Get The lepton type for the i-esim good lepton  (tight+notight)
-		virtual LeptonTypes GetLeptonType(const unsigned int & index) const = 0;
-		//! Get The lepton type for the i-esim Tight lepton 
-		virtual LeptonTypes GetTightLeptonType(const unsigned int & index) const = 0;
-		//! Get The lepton type for the i-esim no Tight lepton 
-		virtual LeptonTypes GetNoTightLeptonType(const unsigned int & index) const = 0;
-		//! Get the i-essim index of the NoTight lepton
-		const unsigned int GetNoTightIndex(const unsigned int & i) const;
+		inline virtual std::vector<LeptonRel> * GetNoTightLeptons() const { return _notightLeptons; }
+		//! Get the i-essim index of the Tight lepton --> ??
+		//const unsigned int GetTightIndex(const unsigned int & i) const;
+		//! Get the i-essim index of the NoTight lepton ---> ??
+		//const unsigned int GetNoTightIndex(const unsigned int & i) const;
 		//! Get the number of total leptons which are considered in this analysis
 		inline const unsigned int GetNAnalysisLeptons() { return _nLeptons; }
 		//! Get the number of total Tight leptons which are considered in this analysis
 		inline const unsigned int GetNAnalysisTightLeptons() { return _nTights; }
 		//! Get the number of total No-Tight leptons which are considered in this analysis
 		inline const unsigned int GetNAnalysisNoTightLeptons() { return _nFails; }
+		
+		//! Get the value for the input parameters entered by the user via the InputParameters
+		inline const double GetCut(const std::string & cutname) const { return (*_cuts)[cutname]; }
+
+		//!
 
 		//-- Setters
 		//! Set the operational MODE
@@ -142,7 +142,7 @@ class CutManager
 	protected:
 		//! Selectors: WARNING use GetNWhatever methods instead!! Not to be used by any client
 		//! Basic selection: usually consist in some loose kinematical cuts
-		//! and some loose id cuts (Loose)
+		//! and some loose id cuts (Loose) --> make it private
 		virtual unsigned int SelectBasicLeptons() = 0; 
 		//! Select leptons close to the Primary Vertex 
 		virtual unsigned int SelectLeptonsCloseToPV() = 0;
@@ -156,14 +156,16 @@ class CutManager
 		//! mode == CutManager::FAKEABLESAMPLE
 		virtual unsigned int SelectLooseLeptons() = 0; 
 		
-		//! Syncronize lepton type with indices vector when fake mode active
-		virtual void SyncronizeLeptonType() = 0;
-		
+
 		//! Update fakeables collection, taking into account the lepton type (fake mode active)
+		void UpdateFakeableCollections( const std::vector<LeptonRel> * finalcol );
 		virtual bool WasAlreadyUpdated() = 0;
 
-		//! Container of the data:  FIXME: IT is needed?
+		//! Container of the data
 		TreeManager * _data;
+
+		//! The run period of the data being analysed
+		std::string _runperiod;
 
 		//! Mapping name of the cut with its value (must be a double)
 		std::map<std::string,double> * _cuts;
@@ -180,20 +182,29 @@ class CutManager
 		//! note that _nLeptons = _nTights + _nFails
 		unsigned int _nFails;
 
-		//! Selection datamembers (in parenthesis the meaning when fake mode active)
-		//! Vector of index of leptons which pass the basic selection (Loose)
-		std::vector<int> * _selectedbasicLeptons;
-		//! Vector of index of leptons closest to PV (tight)
-		std::vector<int> * _closeToPVLeptons;
-		//! Vector of index of isolated leptons (tight + no tight)
-		std::vector<int> * _selectedIsoLeptons;
-		//! Vector of index of good identified leptons ( tight + no tight)
-		std::vector<int> * _selectedGoodIdLeptons;
+		//! data member to deal with momentum/energy scale systematics
+		bool _modifypt;
+		double _smu;
+		double _sebr;
+		double _see;
 
-		//! Vector of leptons indices which have not passed the tight cuts 
-		std::vector<int> * _notightLeptons;
-		//! Vector of leptons indices which have pass the tight cuts
-		std::vector<int> * _tightLeptons;
+		//! Selection datamembers (in parenthesis the meaning when fake mode active)
+		//! Vector of leptons which pass the basic selection (Loose)
+		std::vector<LeptonRel> * _selectedbasicLeptons;
+		//! Vector of leptons closest to PV (tight)
+		std::vector<LeptonRel> * _closeToPVLeptons;
+		//! Vector of isolated leptons (tight + no tight)
+		std::vector<LeptonRel> * _selectedIsoLeptons;
+		//! Vector of good identified leptons ( tight + no tight)
+		std::vector<LeptonRel> * _selectedGoodIdLeptons;
+
+		//! Vector of leptons which have not passed the tight cuts 
+		std::vector<LeptonRel> * _notightLeptons;
+		//! Vector of leptons which have pass the tight cuts
+		std::vector<LeptonRel> * _tightLeptons;
+
+		//! Auxiliary data member to keep track of the allocated pointers
+		std::vector<std::vector<LeptonRel> **> * _registeredcols;
 
 	ClassDef(CutManager,0);
 };

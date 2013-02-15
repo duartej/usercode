@@ -3,13 +3,18 @@
 
 #include "TLorentzVector.h"
 
-#include<cmath>
+//#include<cmath>
+#include<algorithm>
 
 const double kZMass = 91.1876; // TO BE INCLUDED IN THE CONFIG
 
 // Constructor
-MuonSelection::MuonSelection( TreeManager * data, const int & nTights, const int & nLeptons) : 
-	CutManager(data,nTights,nLeptons),
+MuonSelection::MuonSelection( TreeManager * data, const int & nTights, const int & nLeptons,
+		const char * runperiod) : 
+	CutManager(data,nTights,nLeptons,runperiod),
+	//_muonID(MuonID::VBTF),  // FIXME: Entered via argument?? or is good to be hardcoded?
+	//_muonID(MuonID::HWWID),  // FIXME: Entered via argument?? or is good to be hardcoded?
+	_muonID(-1),
 	kMinMuPt1(-1),
 	kMinMuPt2(-1),      
 	kMinMuPt3(-1),          
@@ -31,6 +36,7 @@ MuonSelection::MuonSelection( TreeManager * data, const int & nTights, const int
 	kMinNumOfMatches(-1),
 	kMinNValidPixelHitsInTrk(-1),
 	kMinNValidHitsInTrk(-1),
+	kMinNLayers(-1),
 	kMaxDeltaPtMuOverPtMu(-1),
 	kMaxLoosed0(-1),
 	kMaxLooseIso(-1)
@@ -49,12 +55,30 @@ void MuonSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 	if( ipmap.find(MUON) == ipmap.end() )
 	{
 		std::cerr << "\033[1;31mElecSelection::LockCuts ERROR:\033[1;m "
-			<< "The InputParameter introduced is not for electrons!"
+			<< "The InputParameter introduced is not for Muons!"
 			<< " Some incoherence found, check your initialization code."
 			<< std::endl;
 		exit(-1);
 	}
 	InputParameters * ip = (*(ipmap.find(MUON))).second;
+
+	// MuonId 
+	std::string muonid( ip->TheNamedString("MuonID") );
+	if( muonid == "HWWID" )
+	{
+		_muonID = MuonID::HWWID;
+	}
+	else if( muonid == "VBTF" )
+	{
+		_muonID = MuonID::VBTF;
+	}
+	else
+	{
+		std::cerr << "\033[1;31mElecSelection::LockCuts ERROR:\033[1;m "
+			<< "The 'MuonID' parameter introduced is not recognized: '"
+			<< _muonID << "'" << std::endl;
+		exit(-1);
+	}
 
 	double dummy = 0;
 	// Putting all the cuts (received from InitialiseCuts)
@@ -76,6 +100,8 @@ void MuonSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 	for(std::map<std::string,double>::iterator cut = _cuts->begin(); 
 			cut != _cuts->end();++cut)
 	{
+		// Just to store
+		this->SetCut(cut->first,cut->second);
 		if( cut->first == "MinMuPt1" )
 		{
 			kMinMuPt1 = cut->second;
@@ -135,6 +161,12 @@ void MuonSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 		else if( cut->first == "MinNValidHitsSATrk" )
 		{
 			kMinNValidHitsSATrk = (int)cut->second;
+			// Forcing to be null in the 2012
+			if( std::string(ip->TheNamedString("RunPeriod")).find("2012") 
+					!= std::string::npos )
+			{
+				kMinNValidHitsSATrk = -1;
+			}
 		}
 		else if( cut->first == "MaxNormChi2GTrk" )
 		{
@@ -147,10 +179,26 @@ void MuonSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 		else if( cut->first == "MinNValidPixelHitsInTrk" )
 		{
 			kMinNValidPixelHitsInTrk = (int)cut->second;
+			// Forcing to be null in the 2012
+			if( std::string(ip->TheNamedString("RunPeriod")).find("2012") 
+					!= std::string::npos )
+			{
+				kMinNValidPixelHitsInTrk = -1;
+			}
 		}
 		else if( cut->first == "MinNValidHitsInTrk" )
 		{
 			kMinNValidHitsInTrk = (int)cut->second;
+			// Forcing to be null in the 2012
+			if( std::string(ip->TheNamedString("RunPeriod")).find("2012") 
+					!= std::string::npos )
+			{
+				kMinNValidHitsInTrk = -1;
+			}
+		}
+		else if( cut->first == "MinNLayers" )
+		{
+			kMinNLayers = (int)cut->second;
 		}
 		else if( cut->first == "MaxDeltaPtMuOverPtMu" )
 		{
@@ -191,6 +239,8 @@ std::vector<std::string> MuonSelection::GetCodenames() const
 	return std::vector<std::string>(_codenames.begin(),_codenames.end());
 }
 
+
+// Proxy function to capture the client petitions and return the correct parameter related cut
 bool MuonSelection::IsPass(const std::string & codename, const std::vector<double> * varAux ) const
 {
 	// Checking
@@ -257,7 +307,7 @@ bool MuonSelection::IsPass(const std::string & codename, const std::vector<doubl
 			exit(-1);
 		}
 
-		ispass = (! this->IsInsideZWindow((*varAux)[0]));
+		ispass = this->IsInsideZWindow((*varAux)[0]);
 	}
 	else if( codename == "MinMET" )
 	{
@@ -300,10 +350,10 @@ bool MuonSelection::IsPassMETCut(const double & MET) const
 	return ( MET > kMinMET );
 }
 
-
 // Specific muon pt-cuts (for the good identified-isolated muons)
 bool MuonSelection::IsPassPtCuts() const
 {
+	//FIXME: Hardcoded number of lepton cuts: Potential bug!!
 	std::vector<double> vptcut;
 	vptcut.push_back(kMinMuPt1);
 	vptcut.push_back(kMinMuPt2);
@@ -312,12 +362,11 @@ bool MuonSelection::IsPassPtCuts() const
 	// Ordered from higher to lower pt: begin from the lowest in order
 	// to accomplish the old cut pt1 = 20 pt2 = 10 when you are dealing
 	// with two leptons
-        for(std::vector<int>::reverse_iterator it = _selectedGoodIdLeptons->rbegin(); 
+        for(std::vector<LeptonRel>::reverse_iterator it = _selectedGoodIdLeptons->rbegin(); 
 			it != _selectedGoodIdLeptons->rend() ; ++it)
 	{
-		const unsigned int i = *it;
 		const double ptcut = vptcut[k];
-		if( _data->Get<float>("T_Muon_Pt",i) < ptcut )
+		if( it->getP4().Pt() < ptcut )
 		{
 			return false;
 		}
@@ -337,6 +386,94 @@ bool MuonSelection::IsPassDeltaRCut( const double & minDeltaRMuMu ) const
 bool MuonSelection::IsInsideZWindow( const double & invariantMass ) const
 {
 	return ( kMaxZMass > invariantMass && invariantMass > kMinZMass);
+}
+
+bool MuonSelection::PassVBTFTightID(const int & i) const
+{
+	bool Idcuts = (_data->Get<float>("T_Muon_NormChi2GTrk",i) < kMaxNormChi2GTrk )
+		&& (_data->Get<int>("T_Muon_NValidHitsSATrk",i) > kMinNValidHitsSATrk )
+		&& (_data->Get<int>("T_Muon_NumOfMatches",i) > kMinNumOfMatches )
+		&& (_data->Get<int>("T_Muon_NValidPixelHitsInTrk",i) > kMinNValidPixelHitsInTrk )
+		// Susbstituting NLayers cut
+		&& (_data->Get<int>("T_Muon_NValidHitsInTrk",i) > kMinNValidHitsInTrk) ;
+
+	return Idcuts;
+}
+
+bool MuonSelection::PassHWWMuonID(const int & i) const
+{
+	double ptResolution = _data->Get<float>("T_Muon_deltaPt",i)/_data->Get<float>("T_Muon_Pt",i);
+	//Lepton ID and quality cuts
+	bool passcutsforGlb = false;
+	// If is global Muon using its ID cuts
+	if( _data->Get<bool>("T_Muon_IsGlobalMuon",i) )
+	{
+		passcutsforGlb = _data->Get<int>("T_Muon_NValidHitsSATrk",i) > kMinNValidHitsSATrk
+			&& _data->Get<float>("T_Muon_NormChi2GTrk",i) < kMaxNormChi2GTrk 
+			&& _data->Get<int>("T_Muon_NumOfMatches",i) > kMinNumOfMatches;
+	}
+	
+	bool passcutsforSA = false;
+	if( _data->Get<bool>("T_Muon_IsAllTrackerMuons",i) ) // Tracker muons
+	{
+		passcutsforSA = _data->Get<bool>("T_Muon_IsTMLastStationTight",i);
+	}
+	
+	const bool passSpecific = passcutsforGlb || passcutsforSA;
+	
+	// If is not global with quality or tracker with quality TMLast..
+	// can continue
+	if( ! passSpecific )
+	{
+		return false;
+	}
+	
+	bool Idcuts = _data->Get<int>("T_Muon_NValidPixelHitsInTrk",i) > kMinNValidPixelHitsInTrk 
+		// Note that T_Muon_InnerTrackFound = T_Muon_NValidHitsInTrk
+		&& _data->Get<int>("T_Muon_InnerTrackFound",i) > kMinNValidHitsInTrk
+		&& fabs(ptResolution) < kMaxDeltaPtMuOverPtMu;
+	
+	// New cuts for 2012
+	if( _runperiod.find("2012") != std::string::npos )
+	{
+		Idcuts = Idcuts && _data->Get<bool>("T_Muon_isPFMuon",i) && 
+		  _data->Get<int>("T_Muon_NLayers",i) > kMinNLayers;
+	}
+
+	return Idcuts;
+}
+
+// Get the muon isolation over pt depending of the ID applied. Also returns if
+// the comparation w.r.t. input sheet values should be done inverse (2012) or not (2011)
+std::pair<double,bool> MuonSelection::GetMuonIsolationOverPt( const int & i ) const
+{
+	if( this->_runperiod.find("2012") != std::string::npos )
+	{
+		return std::pair<double,int>(_data->Get<float>("T_Muon_MVARings",i),true);
+	}
+
+	double isovariableoverpt = 1.0/_data->Get<float>("T_Muon_Pt",i);
+	if( this->_muonID == MuonID::HWWID )
+	{
+		isovariableoverpt *= _data->Get<float>("T_Muon_muSmurfPF",i);
+	}
+	else if( this->_muonID == MuonID::VBTF )
+	{
+		isovariableoverpt *= ( _data->Get<float>("T_Muon_pfCharged",i) 
+				+ std::max(0.0,_data->Get<float>("T_Muon_pfNeutral",i)
+				+ _data->Get<float>("T_Muon_pfPhoton",i) 
+				- 0.5*_data->Get<float>("T_Muon_Beta",i)) );
+	}
+	else
+	{
+		std::cerr << "\033[1;31mMuonSelection::GetMuonIsolationOverPt ERROR:\033[1;m "
+			<< "MuonID not recognized '" << this->_muonID << "'. Unexpected error, check the"
+			<< " MuonSelection code for a call to this function. Exiting..."
+			<< std::endl;
+		exit(-1);
+	}
+	
+	return std::pair<double,bool>(isovariableoverpt,false);
 }
 
 //---------------------------------------------
@@ -361,11 +498,11 @@ unsigned int MuonSelection::SelectBasicLeptons()
 	// Empty the selected muons vector --> Redundant to be removed
 	_selectedbasicLeptons->clear();
 	
-	
 	// Be ready the notightLeptons if proceed
 	if( _samplemode == CutManager::FAKEABLESAMPLE )
 	{
-		_notightLeptons = new std::vector<int>;
+		_notightLeptons = new std::vector<LeptonRel>;
+		_registeredcols->push_back(&_notightLeptons);
 	}
 
 	
@@ -373,36 +510,54 @@ unsigned int MuonSelection::SelectBasicLeptons()
 	for(unsigned int i=0; i < _data->GetSize<float>("T_Muon_Px"); ++i) 
 	{
 		//Build 4 vector for muon
-		TLorentzVector Mu(_data->Get<float>("T_Muon_Px",i), 
+		TLorentzVector MuP4(_data->Get<float>("T_Muon_Px",i), 
 				_data->Get<float>("T_Muon_Py",i), 
 				_data->Get<float>("T_Muon_Pz",i), 
 				_data->Get<float>("T_Muon_Energy",i));
-		//Fill Histograms
-		/*if(fFillHistos) 
-		{
-			fHMuonSelectionPT->Fill(Mu.Pt());
-			fHMuonSelectionEta->Fill(Mu.Eta());
-		}*/
+
+		// Build the lepton with all 
+		LeptonRel mu(MuP4,i);
+		// these are muons
+		mu.setleptontype(MUON);
 		
 		//[Cut in Eta and Pt]
 		//-------------------
 		//if( ! this->IsPassAcceptanceCuts(i,Mu.Pt(),Mu.Eta()) )
-		if( fabs(Mu.Eta()) >= kMaxAbsEta || Mu.Pt() <= kMinMuPt3 )
+		if( fabs(mu.getP4().Eta()) >= kMaxAbsEta || mu.getP4().Pt() <= kMinMuPt3 )
 		{
 			continue;
 		}
-		//[If the muon is standalone, and it is neither Tracker 
-		//nor Global then get rid of it]
-		//-------------------
-		if(  _data->Get<bool>("T_Muon_IsAllStandAloneMuons",i) 
+		// Just to avoid extra computation
+		bool isnotglobal = false;
+		if( _muonID == MuonID::HWWID )
+		{	
+			//[If the muon is standalone, and it is neither Tracker 
+			//nor Global then get rid of it]
+			//-------------------
+			isnotglobal = ( _data->Get<bool>("T_Muon_IsAllStandAloneMuons",i) 
 				&& !_data->Get<bool>("T_Muon_IsGlobalMuon",i) 
-				&& !_data->Get<bool>("T_Muon_IsAllTrackerMuons",i) )
+				&& !_data->Get<bool>("T_Muon_IsAllTrackerMuons",i) ); 
+		}
+		else if( _muonID == MuonID::VBTF )
 		{
-			continue; // muStaOnly 
+			isnotglobal = !_data->Get<bool>("T_Muon_IsGlobalMuon",i);
+		}
+		else
+		{
+			std::cerr << "\033[1;31mMuonSelection::GetMuonIsolationOverPt ERROR:\033[1;m "
+				<< "MuonID not recognized '" << this->_muonID << "'. Unexpected error, check the"
+				<< " MuonSelection code for a call to this function. Exiting..."
+				<< std::endl;
+			exit(-1);
 		}
 		
-		// If we got here it means the muon is good
-		_selectedbasicLeptons->push_back(i);
+		if( isnotglobal )
+		{
+			continue; 
+		}
+		
+		// If we got here it means the muon is good (keep track of hte new
+		_selectedbasicLeptons->push_back(mu);
 	}
 	
 	return _selectedbasicLeptons->size();
@@ -416,7 +571,7 @@ unsigned int MuonSelection::SelectBasicLeptons()
 //---------------------------------------------
 unsigned int MuonSelection::SelectLeptonsCloseToPV() 
 {
-	if( _closeToPVLeptons == 0)
+	if( _closeToPVLeptons == 0 )
 	{
 		this->GetNLeptonsCloseToPV();
 		//_closeToPVLeptons = new std::vector<int>;
@@ -437,39 +592,27 @@ unsigned int MuonSelection::SelectLeptonsCloseToPV()
 	//unsigned int iGoodVertex = 0;
 
 	//Loop over selected muons
-	for(std::vector<int>::iterator it = _selectedbasicLeptons->begin();
+	for(std::vector<LeptonRel>::iterator it = _selectedbasicLeptons->begin();
 			it != _selectedbasicLeptons->end(); ++it)
 	{
-		unsigned int i = *it;
+		unsigned int i = it->index();
 
 		//Build 4 vector for muon (por que no utilizar directamente Pt
-		double ptMu = TLorentzVector(_data->Get<float>("T_Muon_Px",i), 
-				_data->Get<float>("T_Muon_Py",i), 
-				_data->Get<float>("T_Muon_Pz",i), 
-				_data->Get<float>("T_Muon_Energy",i)).Pt();
+		const double ptMu = it->getP4().Pt();
 
-		//[Require muons to be close to PV] --> FIXME: MiniTRees, buscar forma de cambiarlo...
+		//[Require muons to be close to PV] 
 		//-------------------
-//#ifdef MINITREES
-//		// Next two lines for pure minitrees
-//		double deltaZMu = _data->GetMuonvz()->at(i) - _data->GetVertexz()->at(iGoodVertex);
-//		double IPMu     = _data->GetMuonIP2DInTrack()->at(i);
-//#endif
-//#ifdef LATINOTREES
-		// Next two lines for latinos
-		double deltaZMu = 0;
-		double IPMu = 0;
-		// + Lara
-//		if (fUseBiased) {
-		deltaZMu = _data->Get<float>("T_Muon_dzPVBiasedPV",i);
-		IPMu     = _data->Get<float>("T_Muon_IP2DBiasedPV",i);
-//		}
-		// + Jonatan
-//		else {
-//			deltaZMu = _data->GetMuondzPVUnBiasedPV()->at(i);
-//			IPMu     = _data->GetMuonIP2DUnBiasedPV()->at(i);
-//		}
-//#endif
+		// FIXME: this function has to be merged with goodIDleptons 
+		//        because how close is from a PV is part of the ID...
+		//        So CloseToPV ---> become GoodID 
+		double deltaZMu   = 0;
+		// Note that T_Muon_IP2DBiasedPV = abs(T_Muon_dxyPVBiasedPV)
+		const double IPMu = _data->Get<float>("T_Muon_IP2DBiasedPV",i);
+		if( _muonID == MuonID::HWWID )
+		{
+			deltaZMu = _data->Get<float>("T_Muon_dzPVBiasedPV",i);
+		}
+
 		if(fabs(deltaZMu) > kMaxDeltaZMu )
 		{
 			continue;
@@ -481,7 +624,7 @@ unsigned int MuonSelection::SelectLeptonsCloseToPV()
 		{
 			if( _samplemode == CutManager::FAKEABLESAMPLE )
 			{
-				_notightLeptons->push_back(i);
+				_notightLeptons->push_back(*it);
 			}
 			continue;
 		}
@@ -489,15 +632,14 @@ unsigned int MuonSelection::SelectLeptonsCloseToPV()
 		{
 			if( _samplemode == CutManager::FAKEABLESAMPLE )
 			{
-				_notightLeptons->push_back(i);
+				_notightLeptons->push_back(*it);
 			}
 			continue;
 		}
 		
 		// If we got here it means the muon is good
-		_closeToPVLeptons->push_back(i);
+		_closeToPVLeptons->push_back(*it);
 	}
-	
 	return _closeToPVLeptons->size();
 }
 
@@ -527,27 +669,17 @@ unsigned int MuonSelection::SelectIsoLeptons()
 	}
 	
 	//Loop over selected muons
-	for(std::vector<int>::iterator it = _closeToPVLeptons->begin();
+	for(std::vector<LeptonRel>::iterator it = _closeToPVLeptons->begin();
 			it != _closeToPVLeptons->end(); ++it)
 	{
-		unsigned int i = *it;
-		
-		//Build 4 vector for muon
-		TLorentzVector Mu(_data->Get<float>("T_Muon_Px",i), 
-				_data->Get<float>("T_Muon_Py",i),
-				_data->Get<float>("T_Muon_Pz",i), 
-				_data->Get<float>("T_Muon_Energy",i));
+		unsigned int i = it->index();
 		
 		//[Require muons to be isolated]
 		//-------------------
-//#ifdef MINITREES
-//		double isolation = (_data->GetMuonSumIsoTrack()->at(i) + 
-//				_data->GetMuonSumIsoCalo()->at(i)) / Mu.Pt();
-//#endif
-//#ifdef LATINOTREES
-		double isolation =(_data->Get<float>("T_Muon_muSmurfPF",i) )/Mu.Pt();
-//#endif
-		
+		const std::pair<double,bool> isoandorder = this->GetMuonIsolationOverPt(i);
+		const double isolation = isoandorder.first;
+		const bool reversecmp = isoandorder.second;
+
 		//WARNING: HARDCODED limit of the eta regions and Pt
 		//The eta/pt plane is divided in 4 regions and the cut on isolation
 		//is different in each region
@@ -555,9 +687,9 @@ unsigned int MuonSelection::SelectIsoLeptons()
 		// PT ^
 		//   /|\ |
 		//    |  |
-		//    |R1|R2
-		// 20-+--+---
 		//    |R3|R4
+		// 20-+--+---
+		//    |R1|R2
 		//    +--+---> eta
 		//       |
 		//      1.479 
@@ -565,10 +697,10 @@ unsigned int MuonSelection::SelectIsoLeptons()
 		const double ptLimit  = 20.0;
 
 		double IsoCut = -1;
-		const double mupt = Mu.Pt();
-		const double mueta= Mu.Eta();
-		// High Pt Region:
-		if( mupt > ptLimit )
+		const double mupt = it->getP4().Pt();
+		const double mueta= it->getP4().Eta();
+		// Low Pt Region:
+		if( mupt <= ptLimit )
 		{
 			// Low eta region: R1
 			if( fabs(mueta) < etaLimit ) 
@@ -581,7 +713,7 @@ unsigned int MuonSelection::SelectIsoLeptons()
 				IsoCut = kMaxPTIsolationR2;
 			}
 		}
-		else  // Low Pt Region:
+		else  // High Pt Region:
 		{
 			// Low eta region: R3
 			if( fabs(mueta) < etaLimit )
@@ -595,19 +727,24 @@ unsigned int MuonSelection::SelectIsoLeptons()
 			}
 		}
 		
-		const bool isolatedMuon = (isolation < IsoCut);
+		// Note that when deal with the 2012 iso variable the cut is 
+		// reversed, the condition to be satisfied is mva > IsoCut
+		bool isolatedMuon = (isolation < IsoCut);
+		if( reversecmp )
+		{
+			isolatedMuon = !isolatedMuon;
+		}
 		
 		if( !isolatedMuon )
 		{
 			if( _samplemode == CutManager::FAKEABLESAMPLE )
 			{
-				_notightLeptons->push_back(i);
+				_notightLeptons->push_back(*it);
 			}
 			continue;
 		}
-		
 		// If we got here it means the muon is good
-		_selectedIsoLeptons->push_back(i);
+		_selectedIsoLeptons->push_back(*it);
 	}
 
 	return _selectedIsoLeptons->size();
@@ -639,54 +776,39 @@ unsigned int MuonSelection::SelectGoodIdLeptons()
 	}
 
 	//Loop over selected muons
-	for(std::vector<int>::iterator it = _selectedIsoLeptons->begin();
+	for(std::vector<LeptonRel>::iterator it = _selectedIsoLeptons->begin();
 			it != _selectedIsoLeptons->end(); ++it)
 	{
-		const unsigned int i = *it;
+		const unsigned int i = it->index();
 	
-		double ptResolution = _data->Get<float>("T_Muon_deltaPt",i)/
-			_data->Get<float>("T_Muon_Pt",i);
-	        //Lepton ID and quality cuts
-		bool passcutsforGlb = false;
-		// If is global Muon using its ID cuts
-		if( _data->Get<bool>("T_Muon_IsGlobalMuon",i) )
+		bool Idcuts = false;
+		if( _muonID == MuonID::HWWID )
 		{
-			passcutsforGlb = _data->Get<int>("T_Muon_NValidHitsSATrk",i) > kMinNValidHitsSATrk
-			    && _data->Get<float>("T_Muon_NormChi2GTrk",i) < kMaxNormChi2GTrk 
-			    && _data->Get<int>("T_Muon_NumOfMatches",i) > kMinNumOfMatches;
+			Idcuts = this->PassHWWMuonID(i);
 		}
+		else if( _muonID == MuonID::VBTF )
+		{
+			Idcuts = this->PassVBTFTightID(i);
+		}
+		else
+		{
+			std::cerr << "\033[1;31mMuonSelection::GetMuonIsolationOverPt ERROR:\033[1;m "
+				<< "MuonID not recognized '" << _muonID << "'. Unexpected error, check the"
+				<< " MuonSelection code for a call to this function. Exiting..."
+				<< std::endl;
+			exit(-1);
+		}
+
 		
-		bool passcutsforSA = false;
-		if( _data->Get<bool>("T_Muon_IsAllTrackerMuons",i) ) // Tracker muons
-		{
-			passcutsforSA = _data->Get<bool>("T_Muon_IsTMLastStationTight",i);
-		}
-	
-		const bool passSpecific = passcutsforGlb || passcutsforSA;
-	
-		// If is not global with quality or tracker with quality TMLast..
-		// can continue
-		if( ! passSpecific )
-		{
-			continue;
-		}
-
-		bool Idcuts = _data->Get<int>("T_Muon_NValidPixelHitsInTrk",i) > kMinNValidPixelHitsInTrk 
-//#ifdef MINITREES
-//		    && _data->GetMuonNValidHitsInTrk()->at(i) > kMinNValidHitsInTrk 
-//#endif
-//#ifdef LATINOTREES
- 	            && _data->Get<int>("T_Muon_InnerTrackFound",i) > kMinNValidHitsInTrk 
-//#endif
-	           && fabs(ptResolution) < kMaxDeltaPtMuOverPtMu;
-
 		// Remember, if you are here, passSpecific=true
 		if( ! Idcuts )
 		{
 			continue;
 		}
 		// If we got here it means the muon is good
-		_selectedGoodIdLeptons->push_back(i);
+		// and also we can include the rest of datamembers
+		it->setcharge(_data->Get<int>("T_Muon_Charge",it->index()));
+		_selectedGoodIdLeptons->push_back(*it);
       	}
 	
       	return _selectedGoodIdLeptons->size();
@@ -709,24 +831,16 @@ unsigned int MuonSelection::SelectLooseLeptons()
 		this->SelectBasicLeptons();
 	}
 
-	std::vector<int> tokeep;
+	std::vector<LeptonRel> tokeep;
 
 	//Loop over selected muons
-	for(std::vector<int>::iterator it = _selectedbasicLeptons->begin();
+	for(std::vector<LeptonRel>::iterator it = _selectedbasicLeptons->begin();
 			it != _selectedbasicLeptons->end(); ++it)
 	{
-		unsigned int i = *it;
-
-		//Build 4 vector for muon (por que no utilizar directamente Pt
-		double ptMu = TLorentzVector(_data->Get<float>("T_Muon_Px",i), 
-				_data->Get<float>("T_Muon_Py",i), 
-				_data->Get<float>("T_Muon_Pz",i), 
-				_data->Get<float>("T_Muon_Energy",i)).Pt();
+		unsigned int i = it->index();
 
 		//[ID d0 Cut] 
-		double deltaZMu = 0;
 		double IPMu = 0;
-		deltaZMu = _data->Get<float>("T_Muon_dzPVBiasedPV",i);
 		IPMu     = _data->Get<float>("T_Muon_IP2DBiasedPV",i);
 		// Apply cut on d0
 		if( fabs(IPMu) > kMaxLoosed0 )
@@ -735,14 +849,25 @@ unsigned int MuonSelection::SelectLooseLeptons()
 		}
 
 		//[ISO cut]
-		double isolation =(_data->Get<float>("T_Muon_muSmurfPF",i) )/ptMu;
+		const std::pair<double,bool> isoandorder = this->GetMuonIsolationOverPt(i);
+		const double isolation = isoandorder.first;
+		const bool reversecmp = isoandorder.second;
 
-		if( isolation > kMaxLooseIso )
+		bool isIsolated = (isolation < kMaxLooseIso);
+		
+		// If 2012 data, reverse the previous cut in order to accomplish
+		// correct condition MVA_output > kMaxLooseIso
+		if( reversecmp )
+		{
+			isIsolated = !isIsolated;
+		}
+
+		if( ! isIsolated )
 		{
 			continue;
 		}
 		// If we got here it means the muon is loose
-		tokeep.push_back(i);
+		tokeep.push_back(*it);
 	}
 
 	// rebuilding the selected leptons, now are loose too

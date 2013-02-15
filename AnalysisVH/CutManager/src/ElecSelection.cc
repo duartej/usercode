@@ -11,8 +11,9 @@ const double kZMass = 91.1876; // TO BE INCLUDED IN THE CONFIG
 
 // CONSTRUCTOR
 ElecSelection::ElecSelection( TreeManager * data, const int & WPlowpt,
-		const int & WPhighpt, const int & nTights, const int & nLeptons) : 
-	CutManager(data,nTights,nLeptons),
+		const int & WPhighpt, const int & nTights, const int & nLeptons,
+		const char * runperiod) : 
+	CutManager(data,nTights,nLeptons,runperiod),
 	pWP_lowPt(0),   
 	pWP_highPt(0),
 	_ElecType(ElecSelection::CUTBASED),
@@ -32,14 +33,23 @@ ElecSelection::ElecSelection( TreeManager * data, const int & WPlowpt,
 	kMaxPTIsolationR2(-1),
 	kMaxPTIsolationR3(-1),
 	kMaxPTIsolationR4(-1),
-	kMinNValidHitsSATrk(-1),
-	kMaxNormChi2GTrk(-1),
-	kMinNumOfMatches(-1),
-	kMinNValidPixelHitsInTrk(-1),
-	kMinNValidHitsInTrk(-1),
-	kMaxDeltaPtMuOverPtMu(-1),
-	kMaxLoosed0(-1),
-	kMaxLooseIso(-1)
+	kMinMVAValueR1(-1),
+	kMinMVAValueR2(-1),
+	kMinMVAValueR3(-1),
+	kMinMVAValueR4(-1),
+	kMinMVAValueR5(-1),
+	kMinMVAValueR6(-1),
+	kMaxSigmaietaietaR1(-1),
+	kMaxdeltaPhiInR1(-1), 
+	kMaxdeltaEtaInR1(-1),
+	kMaxHtoER1(-1),       
+	kMaxSigmaietaietaR2(-1),
+	kMaxdeltaPhiInR2(-1), 
+	kMaxdeltaEtaInR2(-1),
+	kMaxHtoER2(-1),  
+	kMaxdr03TkSumPtOverPt(-1),
+	kMaxdr03EcalSumPtOverPt(-1),
+	kMaxdr03HcalSumPtOverPt(-1)
 { 
 	// Initialize the selection codenames
 	_codenames.insert("PtMuonsCuts");
@@ -53,8 +63,9 @@ ElecSelection::ElecSelection( TreeManager * data, const int & WPlowpt,
 	pWP_highPt = new WPElecID( WPhighpt );
 }
 
-ElecSelection::ElecSelection( TreeManager * data, const int & nTights, const int & nLeptons) : 
-	CutManager(data,nTights,nLeptons),
+ElecSelection::ElecSelection( TreeManager * data, const int & nTights, const int & nLeptons,
+		const char * runperiod) : 
+	CutManager(data,nTights,nLeptons,runperiod),
 	pWP_lowPt(0),   
 	pWP_highPt(0),
 	_ElecType(ElecSelection::BDTBASED),
@@ -74,14 +85,23 @@ ElecSelection::ElecSelection( TreeManager * data, const int & nTights, const int
 	kMaxPTIsolationR2(-1),
 	kMaxPTIsolationR3(-1),
 	kMaxPTIsolationR4(-1),
-	kMinNValidHitsSATrk(-1),
-	kMaxNormChi2GTrk(-1),
-	kMinNumOfMatches(-1),
-	kMinNValidPixelHitsInTrk(-1),
-	kMinNValidHitsInTrk(-1),
-	kMaxDeltaPtMuOverPtMu(-1),
-	kMaxLoosed0(-1),
-	kMaxLooseIso(-1)
+	kMinMVAValueR1(-1),
+	kMinMVAValueR2(-1),
+	kMinMVAValueR3(-1),
+	kMinMVAValueR4(-1),
+	kMinMVAValueR5(-1),
+	kMinMVAValueR6(-1),
+	kMaxSigmaietaietaR1(-1),
+	kMaxdeltaPhiInR1(-1), 
+	kMaxdeltaEtaInR1(-1),
+	kMaxHtoER1(-1),       
+	kMaxSigmaietaietaR2(-1),
+	kMaxdeltaPhiInR2(-1), 
+	kMaxdeltaEtaInR2(-1),
+	kMaxHtoER2(-1),  
+	kMaxdr03TkSumPtOverPt(-1),
+	kMaxdr03EcalSumPtOverPt(-1),
+	kMaxdr03HcalSumPtOverPt(-1)
 { 
 	// Initialize the selection codenames
 	_codenames.insert("PtMuonsCuts");
@@ -132,7 +152,6 @@ void ElecSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 	}
 	//   - Z mass window
 	double deltazmass=0;
-	double kZMass = 0;
 	ip->TheNamedDouble("DeltaZMass", deltazmass);
 	this->SetCut("MaxZMass",kZMass+deltazmass);
 	this->SetCut("MinZMass",kZMass-deltazmass);
@@ -142,6 +161,7 @@ void ElecSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 	for(std::map<std::string,double>::iterator cut = _cuts->begin(); 
 			cut != _cuts->end();++cut)
 	{
+		this->SetCut(cut->first,cut->second);
 		if( cut->first == "MinMuPt1" )
 		{
 			kMinMuPt1 = cut->second;
@@ -198,29 +218,49 @@ void ElecSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 		{
 			kMaxPTIsolationR4 = cut->second;
 		}
-		else if( cut->first == "MinNValidHitsSATrk" )
+		else if( cut->first == "MaxSigmaietaietaR1" )
 		{
-			kMinNValidHitsSATrk = (int)cut->second;
+			kMaxSigmaietaietaR1 = cut->second;
 		}
-		else if( cut->first == "MaxNormChi2GTrk" )
+		else if( cut->first == "MaxSigmaietaietaR2" )
 		{
-			kMaxNormChi2GTrk = cut->second;
+			kMaxSigmaietaietaR2 = cut->second;
 		}
-		else if( cut->first == "MinNumOfMatches" )
+		else if( cut->first == "MaxdeltaPhiInR1" )
 		{
-			kMinNumOfMatches = (int)cut->second;
+			kMaxdeltaPhiInR1 = cut->second;
 		}
-		else if( cut->first == "MinNValidPixelHitsInTrk" )
+		else if( cut->first == "MaxdeltaPhiInR2" )
 		{
-			kMinNValidPixelHitsInTrk = (int)cut->second;
+			kMaxdeltaPhiInR2 = cut->second;
 		}
-		else if( cut->first == "MinNValidHitsInTrk" )
+		else if( cut->first == "MaxdeltaEtaInR1" )
 		{
-			kMinNValidHitsInTrk = (int)cut->second;
+			kMaxdeltaEtaInR1 = cut->second;
 		}
-		else if( cut->first == "MaxDeltaPtMuOverPtMu" )
+		else if( cut->first == "MaxdeltaEtaInR2" )
 		{
-			kMaxDeltaPtMuOverPtMu = cut->second;
+			kMaxdeltaEtaInR2 = cut->second;
+		}
+		else if( cut->first == "MaxHtoER1" )
+		{
+			kMaxHtoER1 = cut->second;
+		}
+		else if( cut->first == "MaxHtoER2" )
+		{
+			kMaxHtoER2 = cut->second;
+		}
+		else if( cut->first == "Maxdr03TkSumPtOverPt" )
+		{
+			kMaxdr03TkSumPtOverPt = cut->second;
+		}
+		else if( cut->first == "Maxdr03EcalSumPtOverPt" )
+		{
+			kMaxdr03EcalSumPtOverPt = cut->second;
+		}
+		else if( cut->first == "Maxdr03HcalSumPtOverPt" )
+		{
+			kMaxdr03HcalSumPtOverPt = cut->second;
 		}
 		else if( cut->first == "MaxZMass" )
 		{
@@ -230,13 +270,29 @@ void ElecSelection::LockCuts(const std::map<LeptonTypes,InputParameters*> & ipma
 		{
 			kMinZMass = cut->second;
 		}
-		else if( cut->first == "MaxLoosed0" )
+		else if( cut->first == "MinMVAValueR1" )
 		{
-			kMaxLoosed0 = cut->second;
+			kMinMVAValueR1 = cut->second;
 		}
-		else if( cut->first == "MaxLooseIso" )
+		else if( cut->first == "MinMVAValueR2" )
 		{
-			kMaxLooseIso = cut->second;
+			kMinMVAValueR2 = cut->second;
+		}
+		else if( cut->first == "MinMVAValueR3" )
+		{
+			kMinMVAValueR3 = cut->second;
+		}
+		else if( cut->first == "MinMVAValueR4" )
+		{
+			kMinMVAValueR4 = cut->second;
+		}
+		else if( cut->first == "MinMVAValueR5" )
+		{
+			kMinMVAValueR5 = cut->second;
+		}
+		else if( cut->first == "MinMVAValueR6" )
+		{
+			kMinMVAValueR6 = cut->second;
 		}
 		/*else --> Noooo, pues esta funcion se utiliza tambien
 		           para recibir otros cortes genericos
@@ -326,7 +382,7 @@ bool ElecSelection::IsPass(const std::string & codename, const std::vector<doubl
 			exit(-1);
 		}
 
-		ispass = (! this->IsInsideZWindow((*varAux)[0]));
+		ispass = this->IsInsideZWindow((*varAux)[0]);
 	}
 	else if( codename == "MinMET" )
 	{
@@ -381,12 +437,11 @@ bool ElecSelection::IsPassPtCuts() const
 	// Ordered from higher to lower pt: begin from the lowest in order
 	// to accomplish the old cut pt1 = 20 pt2 = 10 when you are dealing
 	// with two leptons
-        for(std::vector<int>::reverse_iterator it = _selectedGoodIdLeptons->rbegin(); 
+        for(std::vector<LeptonRel>::reverse_iterator it = _selectedGoodIdLeptons->rbegin(); 
 			it != _selectedGoodIdLeptons->rend() ; ++it)
 	{
-		const unsigned int i = *it;
 		const double ptcut = vptcut[k];
-		if( _data->Get<float>("T_Elec_Pt",i) < ptcut )
+		if( it->getP4().Pt() < ptcut )
 		{
 			return false;
 		}
@@ -411,43 +466,82 @@ bool ElecSelection::IsInsideZWindow( const double & invariantMass ) const
 // BDT Electrons
 bool ElecSelection::IsPassBDT( const unsigned int & index ) const
 {
+	// Probably this will disappear because there was no discussion
+	// in the 2012 data period with respect the electron calibration
+	std::string ptelec = "T_UncalibElec_Pt";
+	if( _runperiod.find("2012") != std::string::npos )
+	{
+		ptelec = "T_Elec_Pt";
+	}
+
 	//Variables:
-	const double pt       = _data->Get<float>("T_Elec_Pt",index);
+	double pt       = _data->Get<float>(ptelec.c_str(),index);
 	const double absSCeta = fabs(_data->Get<float>("T_Elec_SC_Eta",index));
 	
-	const double bdtValue = _data->Get<float>("T_Elec_BDT",index);
+	// systematics
+	if( this->_modifypt )
+	{
+		if( absSCeta < 1.479 )
+		{
+			pt = pt*this->_sebr;
+		}
+		else
+		{
+			pt = pt*this->_see;
+		}
+	}
+	
+	const char * mvanamestr = "T_Elec_BDT";
+	double regionloweta = 1.0;
+	if( this->_runperiod.find("2012") != std::string::npos )
+	{
+		mvanamestr = "T_Elec_MVA";
+		regionloweta = 0.8;
+	}
+	const double bdtValue = _data->Get<float>(mvanamestr,index);
 
-	// HARDCODED VALUES
+	//The eta/pt plane is divided in 6 regions and the cut on mva values
+	//is different in each region
+	//
+	// PT ^
+	//    |
+	//    |  |  |  |
+	//    |R4|R5|R6|
+	// 20-+--+--+--+
+	//    |R1|R2|R3|
+	//    +--+--+---> eta
+	//       |  |
+	//      r1  1.479 
 	double mvacut = 999;
 	// Low pt electrons
 	if( pt < 20.0 )
 	{
-		if( absSCeta <= 1.0 ) 
+		if( absSCeta <= regionloweta ) 
 		{
-			mvacut = 0.139;
+			mvacut = kMinMVAValueR1;
 		}
-		else if( absSCeta > 1.0 && absSCeta <= 1.479 )
+		else if( absSCeta > regionloweta && absSCeta <= 1.479 )
 		{
-			mvacut = 0.525;
+			mvacut = kMinMVAValueR2;
 		}
 		else if( absSCeta > 1.479 )
 		{
-			mvacut = 0.543;
+			mvacut = kMinMVAValueR3;
 		}
 	}
 	else
 	{
-		if( absSCeta <= 1.0 ) 
+		if( absSCeta <= regionloweta ) 
 		{
-			mvacut = 0.947;
+			mvacut = kMinMVAValueR4;
 		}
-		else if( absSCeta > 1.0 && absSCeta <= 1.479 )
+		else if( absSCeta > regionloweta && absSCeta <= 1.479 )
 		{
-			mvacut = 0.950;
+			mvacut = kMinMVAValueR5;
 		}
 		else if( absSCeta > 1.479 )
 		{
-			mvacut = 0.884;
+			mvacut = kMinMVAValueR6;
 		}
 	}
 	
@@ -473,32 +567,38 @@ bool ElecSelection::IsPassWP( const unsigned int & index ) const
 	const double emIso03  = _data->Get<float>("T_Elec_dr03EcalSumEt",index);
 	const double max_emIso03 = std::max(emIso03-1.0,0.0);
 	const double hadIso03 = _data->Get<float>("T_Elec_dr03HcalSumEt",index);
-	// BARREL Electrons
+	// BARREL Electrons: Region 1 (R1)
 	if( absSCeta < 1.479 )
 	{
-		ispass = sigmaietaieta < 0.01 && fabs(deltaPhiIn) < 0.15 
-			&& fabs(deltaEtaIn) < 0.007 && HtoE < 0.12 
+		ispass = sigmaietaieta < kMaxSigmaietaietaR1 && fabs(deltaPhiIn) < kMaxdeltaPhiInR1 
+			&& fabs(deltaEtaIn) < kMaxdeltaEtaInR1 && HtoE < kMaxHtoER1
 			// Isolation
-			&& trkIso03/pt < 0.2 && max_emIso03/pt < 0.2 && hadIso03/pt < 0.2;
+			&& trkIso03/pt < kMaxdr03TkSumPtOverPt && max_emIso03/pt < kMaxdr03EcalSumPtOverPt
+			       && hadIso03/pt < kMaxdr03HcalSumPtOverPt;
 	}
-	else  // Endcap electrons
+	else  // Endcap electrons: Region 2 (R2)
 	{
-		ispass = sigmaietaieta < 0.03 && fabs(deltaPhiIn) < 0.10 
-			&& fabs(deltaEtaIn) < 0.009 && HtoE < 0.10
+		ispass = sigmaietaieta < kMaxSigmaietaietaR2 && fabs(deltaPhiIn) < kMaxdeltaPhiInR2 
+			&& fabs(deltaEtaIn) < kMaxdeltaEtaInR2 && HtoE < kMaxHtoER2
 			// Isolation
-			&& trkIso03/pt < 0.2 && emIso03/pt < 0.2 && hadIso03/pt < 0.2;
+			&& trkIso03/pt < kMaxdr03TkSumPtOverPt && emIso03/pt < kMaxdr03EcalSumPtOverPt
+			       && hadIso03/pt < kMaxdr03HcalSumPtOverPt;
 	}
 	
-	// Conversion and number of expected hits/
-	const bool passconversion = _data->Get<bool>("T_Elec_passesNewConversion",index);
+	// Conversion and number of expected hits
+	const char * conversionstr = "T_Elec_passesNewConversion";
+	if( _runperiod.find("2012") != std::string::npos )
+	{
+		conversionstr = "T_Elec_passConversionVeto";
+	}
+	const bool passconversion = _data->Get<bool>(conversionstr,index);
 	const bool passExpectedHits = _data->Get<int>("T_Elec_nHits",index) <= 0; 
 	
 	return ispass && passconversion && passExpectedHits;
 }
 
-//FIXME: Asumo que estan ordenados por Pt!!! Commprobar
 //---------------------------------------------
-// Select muons
+// Select electrons
 // - Return the size of the vector with the index of the muons 
 //   passing our cuts (Kinematical cut -- pt and eta -- and must
 //   be not standalone muon
@@ -517,21 +617,27 @@ unsigned int ElecSelection::SelectBasicLeptons()
 	// Be ready the notightLeptons if proceed
 	if( _samplemode == CutManager::FAKEABLESAMPLE )
 	{
-		_notightLeptons = new std::vector<int>;
+		_notightLeptons = new std::vector<LeptonRel>;
+		_registeredcols->push_back(&_notightLeptons);
 	}
 	
 	// Loop over electrons
 	for(unsigned int i=0; i < _data->GetSize<float>("T_Elec_Px"); ++i) 
 	{
 		//Build 4 vector for muon
-		TLorentzVector Elec(_data->Get<float>("T_Elec_Px",i), 
+		TLorentzVector ElecP4(_data->Get<float>("T_Elec_Px",i), 
 				_data->Get<float>("T_Elec_Py",i), 
 				_data->Get<float>("T_Elec_Pz",i), 
 				_data->Get<float>("T_Elec_Energy",i));
+
+		// Build the relative lepton 
+		LeptonRel elec(ElecP4,i);
+		elec.setleptontype(ELECTRON);
+		
 		
 		//[Cut in Eta and Pt]
 		//-------------------
-		if( fabs(Elec.Eta()) >= kMaxAbsEta || Elec.Pt() <= kMinMuPt3 )
+		if( fabs(elec.getP4().Eta()) >= kMaxAbsEta || elec.getP4().Pt() <= kMinMuPt3 )
 		{
 			continue;
 		}
@@ -542,8 +648,8 @@ unsigned int ElecSelection::SelectBasicLeptons()
 			continue;
 		}
 		
-		// If we got here it means the muon is good
-		_selectedbasicLeptons->push_back(i);
+		// If we got here it means the muon is good and keeping track of memory
+		_selectedbasicLeptons->push_back(elec);
 	}
 	
 	return _selectedbasicLeptons->size();
@@ -573,17 +679,14 @@ unsigned int ElecSelection::SelectLeptonsCloseToPV()
 	}
 
 	//Loop over selected muons
-	for(std::vector<int>::iterator it = _selectedbasicLeptons->begin();
+	for(std::vector<LeptonRel>::iterator it = _selectedbasicLeptons->begin();
 			it != _selectedbasicLeptons->end(); ++it)
 	{
-		unsigned int i = *it;
+		unsigned int i = it->index();
 
 		//Build 4 vector for muon (por que no utilizar directamente Pt
 		// FIXME: Not needed: just extract Pt
-		double ptMu = TLorentzVector(_data->Get<float>("T_Elec_Px",i), 
-				_data->Get<float>("T_Elec_Py",i), 
-				_data->Get<float>("T_Elec_Pz",i), 
-				_data->Get<float>("T_Elec_Energy",i)).Pt();
+		const double ptMu = it->getP4().Pt();
 
 		//[Require muons to be close to PV] 
 		//-------------------
@@ -609,7 +712,7 @@ unsigned int ElecSelection::SelectLeptonsCloseToPV()
 		}
 		
 		// If we got here it means the muon is good
-		_closeToPVLeptons->push_back(i);
+		_closeToPVLeptons->push_back(*it);
 	}
 	
 	return _closeToPVLeptons->size();
@@ -640,30 +743,29 @@ unsigned int ElecSelection::SelectIsoLeptons()
 	}
 	
 	//Loop over selected muons
-	for(std::vector<int>::iterator it = _closeToPVLeptons->begin();
+	for(std::vector<LeptonRel>::iterator it = _closeToPVLeptons->begin();
 			it != _closeToPVLeptons->end(); ++it)
 	{
-		unsigned int i = *it;
-		
-		//Build 4 vector for muon
-		// FIXME: Not needed: just extract Pt and Eta
-		TLorentzVector Elec(_data->Get<float>("T_Elec_Px",i), 
-				_data->Get<float>("T_Elec_Py",i),
-				_data->Get<float>("T_Elec_Pz",i), 
-				_data->Get<float>("T_Elec_Energy",i));
+		unsigned int i = it->index();
 
 		//[Require muons to be isolated]
 		//-------------------
-		double isolation =(_data->Get<float>("T_Elec_eleSmurfPF",i) )/Elec.Pt();
+		const char * isonamestr = "T_Elec_eleSmurfPF";
+		double elecpt = it->getP4().Pt();
+		if( _runperiod.find("2012") != std::string::npos )
+		{
+			isonamestr = "T_Elec_pfComb";
+			elecpt = 1.0;
+		}
+		double isolation =(_data->Get<float>(isonamestr,i) )/elecpt;
 		//The eta/pt plane is divided in 4 regions and the cut on isolation
 		//is different in each region
-		//
 		// PT ^
 		//   /|\ |
 		//    |  |
-		//    |R1|R2
-		// 20-+--+---
 		//    |R3|R4
+		// 20-+--+---
+		//    |R1|R2
 		//    +--+---> eta
 		//       |
 		//      1.479 
@@ -671,13 +773,12 @@ unsigned int ElecSelection::SelectIsoLeptons()
 		const double ptLimit  = 20.0;
 		
 		double IsoCut = -1;
-		const double mupt = Elec.Pt();
-		const double mueta= Elec.Eta();
-		// High Pt Region:
-		if( mupt > ptLimit )
+		const double eleceta= it->getP4().Eta();
+		// Low Pt Region:
+		if( elecpt <= ptLimit )
 		{
 			// Low eta region: R1
-			if( fabs(mueta) < etaLimit ) 
+			if( fabs(eleceta) < etaLimit ) 
 			{
 				IsoCut = kMaxPTIsolationR1;
 			}
@@ -687,10 +788,10 @@ unsigned int ElecSelection::SelectIsoLeptons()
 				IsoCut = kMaxPTIsolationR2;
 			}
 		}
-		else  // Low Pt Region:
+		else  // High Pt Region:
 		{
 			// Low eta region: R3
-			if( fabs(mueta) < etaLimit )
+			if( fabs(eleceta) < etaLimit )
 			{
 				IsoCut = kMaxPTIsolationR3;
 			}
@@ -707,7 +808,7 @@ unsigned int ElecSelection::SelectIsoLeptons()
 		{
 			if( _samplemode == CutManager::FAKEABLESAMPLE )
 			{
-				_notightLeptons->push_back(i);
+				_notightLeptons->push_back(*it);
 			}
 			continue;
 		}
@@ -719,13 +820,13 @@ unsigned int ElecSelection::SelectIsoLeptons()
 		{
 			if( _samplemode == CutManager::FAKEABLESAMPLE )
 			{
-				_notightLeptons->push_back(i);
+				_notightLeptons->push_back(*it);
 			}
 			continue;
 		}
 		
 		// If we got here it means the muon is good
-		_selectedIsoLeptons->push_back(i);
+		_selectedIsoLeptons->push_back(*it);
 	}
 	
 	return _selectedIsoLeptons->size();
@@ -757,8 +858,15 @@ unsigned int ElecSelection::SelectGoodIdLeptons()
 		this->SelectIsoLeptons();
 	}
 
+
 	// Note we don't need to do anything more...
 	*_selectedGoodIdLeptons = *_selectedIsoLeptons;
+	// Just adding the missing charge
+	for(std::vector<LeptonRel>::iterator it = _selectedGoodIdLeptons->begin();
+			it != _selectedGoodIdLeptons->end(); ++it)
+	{
+		it->setcharge(_data->Get<int>("T_Elec_Charge",it->index()));
+	}
 	
       	return _selectedGoodIdLeptons->size();
 }

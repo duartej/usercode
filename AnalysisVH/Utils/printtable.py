@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
 
+
 # Fancy name to the samples. The dictionary is built in run-time. Whenever a sample is not
 # defined here, the fancy will be the same as the default one
-TITLEDICT = { "Fakes": "Data-driven bkg", 
-		"Other": "Other bkg", 
-		"WZTo3LNu": "WZ#rightarrow3l#nu", 
-		"PhotonVJets_Madgraph": "V#gamma+Jets",
-		"VGamma": "V#gamma"
-	    }
+from cosmethicshub_mod import LEGENDSDICT as TITLEDICT
+from functionspool_mod import processedsample
+TITLEDICT["Other"]="Other bkg"
+
 ORDERCOLUMNS = [ "Fakes", "ZZ", "Other" ]
 
 
@@ -39,7 +38,7 @@ class format(object):
 			self.tablestart = '\\begin{tabular}{ r | '
 			for i in xrange(ncolumns):
 				self.tablestart += ' l ' 
-			self.tablestart += '}'	        	
+			self.tablestart += '}\\hline'	        	
 			self.tableend   = '\\end{tabular}'
 			self.rowstart = ''
 			self.rowend   = '\\\\'
@@ -74,154 +73,6 @@ class format(object):
 
 		self.format = format
 
-
-class column(object):
-	"""
-	A column has a file where to extract the information
-	Also it is assumed than the values are extracted from
-	an TH1F histogram (at least in this __builddict__ 
-	implementation)
-	"""
-	def __init__(self,file,**keywords):
-		""".. class:: column(file[,title=title,nobuilt=True|False]) 
-
-		A column is associated with a file containing the information. The 
-		file has to get an TH1F histogram (see __builddict__ method) defining
-		the rows (the x-axis of the histogram) and the values of the rows
-		(the bin content of the histogram). So a column is formed by 
-		(rows,values).
-		Also, if it is called with 'nobuilt=True' it is created a instance
-		without fill any of its datamember, so the user must do that.
-		"""
-		import os
-
-		validkeywords = [ "title", "nobuilt" ]
-		self.title = None
-		wildcardfiles = "*.root" # Per default in the current working directory
-		for key,value in keywords.iteritems():
-			if not key in validkeywords:
-				message  = "\033[31;1mcolumn ERROR\033[m Incorrect instantiation of 'column'"
-				message += " class. Valid keywords are: "+str(validkeywords)
-				raise RuntimeError(message)
-			if key == 'title':
-				self.title = value
-			if key == 'nobuilt':
-				self.title = None
-				self.filename = None
-				self.cutordered = None
-				self.rowvaldict = None
-				return
-
-		self.filename = file
-		# FIXME: Must be a root file, checks missing
-		# Define the title of the column as the last word 
-		# before the .root (if the client doesn't provided it)
-		if not self.title:
-			self.title = os.path.basename(self.filename).split(".")[0]
-
-		# Extract the values and stores to a dict
-		self.rowvaldict = self.__builddict__()
-
-
-	def __builddict__(self):
-		"""..method: __builddict__() -> { 'cutname1': (val,err), ... } 
-		This could be a pure virtual, in order to be used by anyone
-		and  any storage method (not just a histo). So this is concrete
-		for my analysis: fHEventsPerCut  histogram
-		Build a dict containing the values already weighted by its luminosity
-		"""
-		import ROOT
-		from array import array
-		import os
-
-		f = ROOT.TFile(self.filename)
-		# Including the luminosity, efficiency weights,,...
-		if "Data.root" in self.filename:
-			weight = 1.0
-		elif "Fakes.root" in self.filename and not "_Fakes.root" in self.filename:
-			weight = 1.0
-		else:
-			# 1) Load the InputParameters
-			ROOT.gSystem.SetDynamicPath(ROOT.gSystem.GetDynamicPath()+":"+os.getenv("VHSYS")+"/libs")
-			ROOT.gSystem.Load("libInputParameters.so")
-
-			weight = 1.0
-			xs = array('d',[0.0])
-			luminosity = array('d',[0.0])
-			neventsample = array('i',[0])
-			neventsskim  = array('i',[0])
-			ip = f.Get("Set Of Parameters")
-			ip.TheNamedDouble("CrossSection",xs)
-			ip.TheNamedInt("NEventsSample",neventsample)
-			ip.TheNamedInt("NEventsTotal",neventsskim)
-			ip.TheNamedDouble("Luminosity",luminosity)
-			weight  = xs[0]*luminosity[0]/neventsample[0]
-		
-		h = f.Get("fHEventsPerCut")
-		self.cutordered = []
-		valdict = {}
-		#FIXME: Control de errores: histo esta
-		for i in xrange(h.GetNbinsX()):
-			self.cutordered.append( h.GetXaxis().GetBinLabel(i+1) )
-			#Initialization of the bin content dict
-			valdict[self.cutordered[-1]] = (weight*h.GetBinContent(i+1),weight*h.GetBinError(i+1))
-		f.Close()
-
-		return valdict	
-
-	def __add__(self,other):
-		""".. operator+(other) -> column 
-
-		Adding up the rowvaldict, so the two columns have to contain the
-		same rows. Note that
-
-		:param other: a column instance
-		:type other: column
-
-		:return: a column instance
-		:rtype:  column
-
-		"""
-		from math import sqrt
-		# Checks
-		# Allowing the a += b operation (when a was instantied using
-		# the 'nobuilt=True' argument, in this case rowvaldict=None
-		try:
-			if set(self.rowvaldict.keys()) != set(other.rowvaldict.keys()):
-				raise TypeError,"Cannot be added because they don't have the same"+\
-						" row composition"
-			hasdict=True
-		except AttributeError:
-			hasdict=False
-
-		# Case when self was called as a += b
-		if not hasdict:
-			self.rowvaldict = other.rowvaldict
-			self.cutordered = other.cutordered
-			return self			
-		
-		addeddict = {}
-		for cutname,(val,err) in self.rowvaldict.iteritems():
-			val  += other.rowvaldict[cutname][0]
-			swap = sqrt(err**2.0+other.rowvaldict[cutname][1]**2.0)
-			addeddict[cutname] = (val,swap)
-
-		#self.rowvaldict = addeddict
-		result = column("",nobuilt=True)
-		result.rowvaldict = addeddict
-		result.cutordered = self.cutordered
-
-		return result
-
-	def getvalerr(self,cutname):
-		""".. method:: getvalerr(cutname) -> (val,err)
-		"""
-		try:
-			return self.rowvaldict[cutname]
-		except KeyError:
-			raise RuntimeError,"column.getvalerr:: the cut '"+cutname+"' is not "+\
-					"defined"
-
 		
 class table(object):
 	"""
@@ -229,7 +80,7 @@ class table(object):
 	def __init__(self,data,signal,**keywords):
 		"""..class:: table(data,signal[,format="tex|html", isreduced=True|False, wildcardfiles="dir",join="metasample"]) 
 		
-		The table is composed by several 'columns' (see 'column' class), and is 
+		The table is composed by several 'processedsample' instances (see functionspool_mod module), and is 
 		going to be built as
 		               bkg1  bkg2 ... TotBkg data signal
 		
@@ -302,17 +153,21 @@ class table(object):
 		# available filenames
 		self.filenames = glob.glob(wildcardfiles)
 
-		# Just to be sure that only use one WH signal
-		if signal.find("WH") == 0:
+		# Just to be sure that only use one WH signal (adapted 2012 MC samples)
+		if signal.find("WH") == 0 or signal.find("wztt") == 0:
 			#Extract the other WH signals
-			potentialSfiles = filter(lambda x : x.find("WH") != -1,self.filenames)
+			#potentialSfiles = filter(lambda x : x.find("WH") != -1,self.filenames)
+			# Common between 2011 and 2012 MC signal samples names
+			# FIXME: Add all the signals in the last columns 
+			potentialSfiles = filter(lambda x : x.find("ToWW") != -1,self.filenames)
 			nonsignalfiles  = filter( lambda x: x.split("/")[-1].split(".root")[0] != signal,potentialSfiles)
 			# Removing
 			for f in nonsignalfiles:
 				self.filenames.remove(f)
 			# Added the important cuts to be used in the reduced table case
-			self.importantcutsdict = { } # FIXME: TO BE DONE!!
-			self.importantcutslist = []
+			self.importantcutsdict = { 'Pre-selection': 'Exactly3Leptons', \
+					'DeltaR': 'DeltaR', 'ZVeto':'ZVeto', 'MET': 'MET'}
+			self.importantcutslist = [ 'Pre-selection', 'DeltaR','ZVeto', 'MET']
 		else:
 			# Added the important cuts to be used in the reduced table case
 			# FIXME WARNING HARDCODED!! --> THis is a temporal patch...
@@ -330,7 +185,7 @@ class table(object):
 				coltitle = TITLEDICT[naturalname]
 			except KeyError:
 				TITLEDICT[naturalname] = naturalname
-			col = column(f)
+			col = processedsample(f)
 			self.columns[col.title] = col
 		
 		# samples names
@@ -377,7 +232,7 @@ class table(object):
 		# 2) Merge some samples just in one
 		for metasample in join:
 			samplestodelete = []
-			self.columns[metasample] = column("",nobuilt=True)
+			self.columns[metasample] = processedsample("",nobuilt=True)
 			for sample in self.getsamplecomponents(metasample):
 				try:
 					self.columns[metasample] += self.columns[sample]
@@ -426,16 +281,18 @@ class table(object):
 		:rtype:  [ str, str, ... ] 
 		"""
 		components = []
-		if metasample == "DY":
+		# The user has preference
+		isusersrequest = metasample in self.usermetasample.keys()
+		if metasample == "DY" and not isusersrequest:
 			components = [ "DYee_Powheg", "DYmumu_Powheg", "DYtautau_Powheg" ]
-		elif metasample == "Z+Jets":
+		elif metasample == "Z+Jets" and not isusersrequest:
 			components = [ "Zee_Powheg", "Zmumu_Powheg", "Ztautau_Powheg" ]
-		elif metasample == "VGamma":
+		elif metasample == "VGamma" and not isusersrequest:
 			components = [ "ZgammaToElElMad", "ZgammaToMuMuMad", "ZgammaToTauTauMad",\
 					"WgammaToElNuMad", "WgammaToMuNuMad", "WgammaToTauNuMad" ]
-		elif metasample == "Other":
+		elif metasample == "Other" and not isusersrequest:
 			#components = [ "TbarW_DR", "TW_DR", "WW", "WJets_Madgraph" ]
-			components = [ "WW", "WJets_Madgraph" ]
+			components = [ "WJets_Madgraph" ] #, 'WW' ] FIXED WW embeded in data-driven
 		elif metasample in self.usermetasample.keys():
 			components = self.usermetasample[metasample]
 		else:
@@ -453,7 +310,7 @@ class table(object):
 
 		Extract the value and the error, given the cut and the sample name. 
 		The function will find the format to return the value using only the most 
-		significant decimal numbers depending on how is its errror. The 
+		significant decimal numbers depending on how is its error. The 
 		error will be modified following the below rules:
 		 - if the error is >= 1.5, then the error is an integer, same as
 		 the value
@@ -469,15 +326,15 @@ class table(object):
 		:return: the value and its error 
 		:rtype : (str,str)
 		"""
-		# FIXME: TO BE MODIFIED: IT NEEDS SOME IMPROVEMENTS (THERE ARE MINOR BUGS)
 		from math import sqrt
+		from functionspool_mod import getrounded
 
 		# Dealing with the TotBkg sample which has to be built 
 		if sample == "TotBkg":
 			val = 0.0
 			err2 = 0.0
 			for s in filter(lambda x: x != self.data and x != self.signal and x != "TotBkg" and x != "Data-TotBkg",self.samples):
-				(v,e) = self.columns[s].getvalerr(cut)
+				(v,e) = self.columns[s].getvalue(cut)
 				val += v
 				err2 += e**2.0
 			err = sqrt(err2)
@@ -485,20 +342,20 @@ class table(object):
 				self.columns["TotBkg"].rowvaldict[cut] = (val,err)
 			except KeyError:
 				# Creating the column
-				self.columns["TotBkg"] = column("",nobuilt=True)
+				self.columns["TotBkg"] = processedsample("",nobuilt=True)
 				# Inititalizing dict and all the other needed data members
 				self.columns["TotBkg"].rowvaldict= { cut: (val,err) }
 				self.columns["TotBkg"].cutordered = self.columns[self.data].cutordered
 
 		# extracting the values
 		try:
-			val,err=self.columns[sample].getvalerr(cut)
+			val,err=self.columns[sample].getvalue(cut)
 		except KeyError:
 			# It's substraction data - TotBkg columns
 			if sample == "Data-TotBkg":
 				# Note that as it has been extract by order, Data and total background
-				(valdata,errdata) = self.columns[self.data].getvalerr(cut)
-				(valbkg,errbkg)   = self.columns["TotBkg"].getvalerr(cut)
+				(valdata,errdata) = self.columns[self.data].getvalue(cut)
+				(valbkg,errbkg)   = self.columns["TotBkg"].getvalue(cut)
 				val = valdata-valbkg
 				err = sqrt(errdata**2.0+errbkg**2.0)
 
@@ -510,18 +367,18 @@ class table(object):
 		nafterpoint = 0 
 		# Case > 1.5
 		if abs(err) < 1e-30:
-			return ("%i" % val)
+			return getrounded(val,1000)
 		elif err >= 1.5 and err < 2.0:
-			errstr = "%.1f" % err
-			valstr = "%.1f" % val
+			errstr = getrounded(err,1)
+			valstr = getrounded(val,1)
 			nafterpoint = 1
 		# Case 1 > err > 1.5
-		elif err >= 1.0 and err < 1.5 :
-			errstr = "%.2f" % err
-			valstr = "%.2f" % val
+		elif err >= 1.0 and err < 1.5:
+			errstr = getrounded(err,2)
+			valstr = getrounded(val,2)
 			nafterpoint = 2
 		elif err >= 2.0:
-			errstr = "%i" % round(err)
+			errstr = getrounded(err,0)
 			valstr = "%i" % round(val)
 			nafterpoint = 0
 		elif err < 1.0 and err > 0.0:
@@ -686,6 +543,7 @@ class table(object):
 if __name__ == '__main__':
 	import sys
 	from optparse import OptionParser
+	import glob
 	
 	#Comprobando la version (minimo 2.4)
 	vX,vY,vZ,_t,_t1 = sys.version_info
@@ -728,7 +586,17 @@ if __name__ == '__main__':
 	signal = args[0]
 
 	if signal.find("WH") == 0:
-		signal = signal.replace("WH","WHToWW2L")
+		# Check the WH data names (depending of the runperiod)
+		dsfrom2011 = glob.glob("*WHToWW2L*")
+		dsfrom2012 = glob.glob("*wzttH*ToWW")
+		if len(dsfrom2011) != 0 and len(dsfrom2012) == 0:
+			signal = signal.replace("WH","WHToWW2L")
+		elif len(dsfrom2012) != 0 and len(dsfrom2011) == 0: 
+			signal = signal.replace("WH","wzttH")+"ToWW"
+		else:
+			message = "\033[31mprinttable ERROR\033[m What run period are you working on?."+\
+			           " WH signal MC samples not recognized. Exiting..."
+			raise RuntimeError(message)
 	
 	if signal.find("WZ") == 0:
 		signal = signal.replace("WZ","WZTo3LNu")
